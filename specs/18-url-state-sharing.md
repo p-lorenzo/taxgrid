@@ -14,3 +14,7 @@ Permettere agli utenti di condividere una specifica simulazione (completa di tut
 - Usare l'API nativa `URLSearchParams` per leggere e scrivere agevolmente i parametri senza bisogno di librerie di routing complesse (come `vue-router`, che potrebbe essere overkill per una single-page senza navigazione).
 - Usare l'API `navigator.clipboard.writeText` per copiare l'URL negli appunti.
 - Valutare una serializzazione base64 dello stato JSON (es. `?state=eyJmYXR...`) se i parametri diventano troppi e la query string risulta troppo lunga o "brutta", altrimenti usare i semplici parametri `?chiave=valore`.
+
+## Status: COMPLETE
+
+<!-- NR_OF_TRIES: 1 -->

@@ -36,6 +36,23 @@ const printPage = () => {
   window.print()
 }
 
+const shareToastVisible = ref(false)
+let shareToastTimer: ReturnType<typeof setTimeout> | null = null
+
+const copyShareUrl = async () => {
+  try {
+    const url = store.buildShareUrl()
+    await navigator.clipboard.writeText(url)
+    shareToastVisible.value = true
+    if (shareToastTimer) clearTimeout(shareToastTimer)
+    shareToastTimer = setTimeout(() => {
+      shareToastVisible.value = false
+    }, 2500)
+  } catch {
+    alert('Impossibile copiare il link negli appunti.')
+  }
+}
+
 // Modal State
 const isBreakdownOpen = ref(false)
 const breakdownTitle = ref('')
@@ -112,10 +129,16 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
             </span>
             Parametri Globali
           </h2>
+          <div class="flex items-center gap-2">
+          <button @click="copyShareUrl" class="print:hidden inline-flex items-center justify-center gap-2 px-4 py-2 border border-[#e2af0d] dark:border-[#e2af0d] rounded-xl bg-white dark:bg-gray-800 hover:bg-[#e2af0d]/10 dark:hover:bg-[#e2af0d]/20 text-sm font-semibold text-gray-700 dark:text-gray-200 shadow-sm hover:shadow transition-all duration-200 cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+            Condividi Simulazione
+          </button>
           <button @click="printPage" class="print:hidden inline-flex items-center justify-center gap-2 px-4 py-2 border border-blue-600 dark:border-blue-500 rounded-xl bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-sm font-semibold text-white shadow-sm hover:shadow transition-all duration-200 cursor-pointer">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
             Stampa Report / PDF
           </button>
+          </div>
         </div>
         
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -445,5 +468,20 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
       :mesi-paragone="store.mesiParagone"
       @close="isBreakdownOpen = false"
     />
+
+    <!-- Share Toast Notification -->
+    <Transition
+      enter-active-class="transition-all duration-300 ease-out"
+      enter-from-class="opacity-0 translate-y-4"
+      enter-to-class="opacity-100 translate-y-0"
+      leave-active-class="transition-all duration-200 ease-in"
+      leave-from-class="opacity-100 translate-y-0"
+      leave-to-class="opacity-0 translate-y-4"
+    >
+      <div v-if="shareToastVisible" class="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl shadow-xl text-sm font-medium">
+        <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+        Link copiato! Ora puoi condividere la simulazione.
+      </div>
+    </Transition>
   </div>
 </template>

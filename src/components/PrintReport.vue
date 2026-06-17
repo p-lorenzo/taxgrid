@@ -427,7 +427,7 @@ const rows = computed(() => {
       </div>
       <div class="flex items-center gap-4 border border-gray-300 p-3.5 bg-gray-50 rounded-lg">
         <qrcode-vue 
-          value="https://taxgrid.it" 
+          :value="store.buildShareUrl()" 
           :size="70" 
           level="H"
           render-as="svg"

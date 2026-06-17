@@ -519,5 +519,146 @@ describe('TaxStore Card Reordering', () => {
   })
 })
 
+describe('TaxStore URL State Sharing', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    setActivePinia(createPinia())
 
+    const mockLocation = {
+      href: 'https://taxgrid.it/',
+      search: '',
+      origin: 'https://taxgrid.it',
+      pathname: '/',
+      protocol: 'https:',
+      host: 'taxgrid.it'
+    }
+    Object.defineProperty(globalThis, 'window', {
+      value: { location: mockLocation },
+      writable: true,
+      configurable: true
+    })
+  })
 
+  it('should produce a valid shareable URL with all current state', () => {
+    const store = useTaxStore()
+    store.fatturato = 85000
+    store.atecoCategory = 'commercio'
+    store.mesiParagone = 14
+    store.forfettarioCassa = 'artigiani'
+
+    const url = store.buildShareUrl()
+
+    expect(url).toContain('https://taxgrid.it/')
+    expect(url).toContain('?data=')
+
+    const urlObj = new URL(url)
+    const dataParam = urlObj.searchParams.get('data')
+    expect(dataParam).toBeTruthy()
+
+    const decoded = JSON.parse(atob(dataParam!))
+    expect(decoded.fatturato).toBe(85000)
+    expect(decoded.atecoCategory).toBe('commercio')
+    expect(decoded.mesiParagone).toBe(14)
+    expect(decoded.forfettarioCassa).toBe('artigiani')
+  })
+
+  it('should include all state keys in the serialized URL', () => {
+    const store = useTaxStore()
+
+    const url = store.buildShareUrl()
+    const urlObj = new URL(url)
+    const dataParam = urlObj.searchParams.get('data')
+    const decoded = JSON.parse(atob(dataParam!))
+
+    const expectedKeys = [
+      'fatturato', 'advancedMode', 'speseDeducibili', 'speseDetraibili',
+      'atecoCategory', 'atecoCoef', 'forfettarioCassa', 'forfettarioStartup',
+      'forfettarioRiduzione35', 'forfettarioRiduzione50', 'ordinarioCassa',
+      'ordinarioRiduzione50', 'srlDistribuzione', 'srlCassa', 'srlRiduzione50',
+      'mesiParagone', 'hasLavoroDipendente', 'ralDipendente', 'dipendenteFullTime',
+      'addizionaleRegionale', 'addizionaleComunale', 'massimaleInps',
+      'showForfettario', 'showOrdinario', 'showSrl', 'showDipendente', 'cardOrder'
+    ]
+
+    for (const key of expectedKeys) {
+      expect(decoded).toHaveProperty(key)
+    }
+  })
+
+  it('should apply URL state overriding default values', () => {
+    const customState = {
+      fatturato: 95000,
+      atecoCategory: 'intermediari',
+      atecoCoef: 0.62,
+      mesiParagone: 13,
+      showDipendente: false,
+      showForfettario: false
+    }
+
+    const encoded = btoa(JSON.stringify(customState))
+    ;(globalThis.window as any).location.search = `?data=${encoded}`
+
+    const store = useTaxStore()
+
+    expect(store.fatturato).toBe(95000)
+    expect(store.atecoCategory).toBe('intermediari')
+    expect(store.atecoCoef).toBe(0.62)
+    expect(store.mesiParagone).toBe(13)
+    expect(store.showDipendente).toBe(false)
+    expect(store.showForfettario).toBe(false)
+    expect(store.ordinarioCassa).toBe('gestione_separata')
+  })
+
+  it('should prioritize URL state over localStorage', () => {
+    localStorage.setItem('taxgrid_state', JSON.stringify({
+      fatturato: 30000,
+      atecoCategory: 'professionisti',
+      atecoCoef: 0.78,
+      mesiParagone: 10,
+      showDipendente: true
+    }))
+
+    const urlState = {
+      fatturato: 75000,
+      atecoCategory: 'commercio'
+    }
+
+    const encoded = btoa(JSON.stringify(urlState))
+    ;(globalThis.window as any).location.search = `?data=${encoded}`
+
+    const store = useTaxStore()
+
+    expect(store.fatturato).toBe(75000)
+    expect(store.atecoCategory).toBe('commercio')
+    expect(store.mesiParagone).toBe(10)
+    expect(store.showDipendente).toBe(true)
+  })
+
+  it('should ignore invalid URL data gracefully', () => {
+    ;(globalThis.window as any).location.search = '?data=invalid!!notbase64!!'
+
+    const store = useTaxStore()
+
+    expect(store.fatturato).toBe(50000)
+    expect(store.atecoCategory).toBe('professionisti')
+  })
+
+  it('should produce different URLs for different states', () => {
+    const store = useTaxStore()
+
+    store.fatturato = 50000
+    store.atecoCategory = 'professionisti'
+    const url1 = store.buildShareUrl()
+
+    store.fatturato = 80000
+    store.atecoCategory = 'commercio'
+    const url2 = store.buildShareUrl()
+
+    expect(url1).not.toBe(url2)
+
+    const data1 = JSON.parse(atob(new URL(url1).searchParams.get('data')!))
+    const data2 = JSON.parse(atob(new URL(url2).searchParams.get('data')!))
+    expect(data1.fatturato).toBe(50000)
+    expect(data2.fatturato).toBe(80000)
+  })
+})

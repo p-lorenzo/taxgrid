@@ -38,17 +38,18 @@ describe('App Component', () => {
     expect(printReport.text()).toContain('Simulazione Fiscale')
 
     // Check that print button exists
-    const printBtn = wrapper.find('button.print\\:hidden')
-    expect(printBtn.exists()).toBe(true)
-    expect(printBtn.text()).toContain('Stampa Report / PDF')
+    const buttons = wrapper.findAll('button.print\\:hidden')
+    const printBtn = buttons.find(b => b.text().includes('Stampa Report / PDF'))
+    expect(printBtn).toBeDefined()
   })
 
   it('triggers window.print when print button is clicked', async () => {
     const printSpy = vi.spyOn(window, 'print').mockImplementation(() => {})
     const wrapper = mount(App)
-    const printBtn = wrapper.find('button.print\\:hidden')
+    const buttons = wrapper.findAll('button.print\\:hidden')
+    const printBtn = buttons.find(b => b.text().includes('Stampa Report / PDF'))
     
-    await printBtn.trigger('click')
+    await printBtn!.trigger('click')
     expect(printSpy).toHaveBeenCalled()
     printSpy.mockRestore()
   })

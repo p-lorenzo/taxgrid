@@ -149,6 +149,91 @@ export const useTaxStore = defineStore('taxStore', () => {
 
   loadState()
 
+  const applyUrlState = () => {
+    if (typeof window === 'undefined') return
+
+    const params = new URLSearchParams(window.location.search)
+    const dataParam = params.get('data')
+    if (!dataParam) return
+
+    try {
+      const parsed = JSON.parse(atob(dataParam))
+
+      if (parsed.fatturato !== undefined) fatturato.value = Number(parsed.fatturato)
+      if (parsed.advancedMode !== undefined) advancedMode.value = Boolean(parsed.advancedMode)
+      if (parsed.speseDeducibili !== undefined) speseDeducibili.value = Number(parsed.speseDeducibili)
+      if (parsed.speseDetraibili !== undefined) speseDetraibili.value = Number(parsed.speseDetraibili)
+      if (parsed.atecoCategory !== undefined) atecoCategory.value = String(parsed.atecoCategory)
+      if (parsed.atecoCoef !== undefined) atecoCoef.value = Number(parsed.atecoCoef)
+      if (parsed.forfettarioCassa !== undefined) forfettarioCassa.value = parsed.forfettarioCassa
+      if (parsed.forfettarioStartup !== undefined) forfettarioStartup.value = Boolean(parsed.forfettarioStartup)
+      if (parsed.forfettarioRiduzione35 !== undefined) forfettarioRiduzione35.value = Boolean(parsed.forfettarioRiduzione35)
+      if (parsed.forfettarioRiduzione50 !== undefined) forfettarioRiduzione50.value = Boolean(parsed.forfettarioRiduzione50)
+      if (parsed.ordinarioCassa !== undefined) ordinarioCassa.value = parsed.ordinarioCassa
+      if (parsed.ordinarioRiduzione50 !== undefined) ordinarioRiduzione50.value = Boolean(parsed.ordinarioRiduzione50)
+      if (parsed.srlDistribuzione !== undefined) srlDistribuzione.value = parsed.srlDistribuzione
+      if (parsed.srlCassa !== undefined) srlCassa.value = parsed.srlCassa
+      if (parsed.srlRiduzione50 !== undefined) srlRiduzione50.value = Boolean(parsed.srlRiduzione50)
+      if (parsed.mesiParagone !== undefined) mesiParagone.value = Number(parsed.mesiParagone)
+      if (parsed.hasLavoroDipendente !== undefined) hasLavoroDipendente.value = Boolean(parsed.hasLavoroDipendente)
+      if (parsed.ralDipendente !== undefined) ralDipendente.value = Number(parsed.ralDipendente)
+      if (parsed.dipendenteFullTime !== undefined) dipendenteFullTime.value = Boolean(parsed.dipendenteFullTime)
+      if (parsed.addizionaleRegionale !== undefined) addizionaleRegionale.value = Number(parsed.addizionaleRegionale)
+      if (parsed.addizionaleComunale !== undefined) addizionaleComunale.value = Number(parsed.addizionaleComunale)
+      if (parsed.massimaleInps !== undefined) massimaleInps.value = Number(parsed.massimaleInps)
+      if (parsed.showForfettario !== undefined) showForfettario.value = Boolean(parsed.showForfettario)
+      if (parsed.showOrdinario !== undefined) showOrdinario.value = Boolean(parsed.showOrdinario)
+      if (parsed.showSrl !== undefined) showSrl.value = Boolean(parsed.showSrl)
+      if (parsed.showDipendente !== undefined) showDipendente.value = Boolean(parsed.showDipendente)
+      if (parsed.cardOrder !== undefined) cardOrder.value = parsed.cardOrder
+    } catch (e) {
+      console.error('Failed to parse URL state', e)
+    }
+  }
+
+  applyUrlState()
+
+  const buildShareUrl = () => {
+    if (typeof window === 'undefined') return 'https://taxgrid.it'
+
+    const state = {
+      fatturato: fatturato.value,
+      advancedMode: advancedMode.value,
+      speseDeducibili: speseDeducibili.value,
+      speseDetraibili: speseDetraibili.value,
+      atecoCategory: atecoCategory.value,
+      atecoCoef: atecoCoef.value,
+      forfettarioCassa: forfettarioCassa.value,
+      forfettarioStartup: forfettarioStartup.value,
+      forfettarioRiduzione35: forfettarioRiduzione35.value,
+      forfettarioRiduzione50: forfettarioRiduzione50.value,
+      ordinarioCassa: ordinarioCassa.value,
+      ordinarioRiduzione50: ordinarioRiduzione50.value,
+      srlDistribuzione: srlDistribuzione.value,
+      srlCassa: srlCassa.value,
+      srlRiduzione50: srlRiduzione50.value,
+      mesiParagone: mesiParagone.value,
+      hasLavoroDipendente: hasLavoroDipendente.value,
+      ralDipendente: ralDipendente.value,
+      dipendenteFullTime: dipendenteFullTime.value,
+      addizionaleRegionale: addizionaleRegionale.value,
+      addizionaleComunale: addizionaleComunale.value,
+      massimaleInps: massimaleInps.value,
+      showForfettario: showForfettario.value,
+      showOrdinario: showOrdinario.value,
+      showSrl: showSrl.value,
+      showDipendente: showDipendente.value,
+      cardOrder: cardOrder.value
+    }
+
+    const json = JSON.stringify(state)
+    const encoded = btoa(json)
+    const url = new URL(window.location.href)
+    url.search = ''
+    url.searchParams.set('data', encoded)
+    return url.toString()
+  }
+
   watch(
     [
       fatturato, advancedMode, speseDeducibili, speseDetraibili, atecoCategory, atecoCoef,
@@ -1177,6 +1262,6 @@ export const useTaxStore = defineStore('taxStore', () => {
     hasLavoroDipendente, ralDipendente, dipendenteFullTime,
     addizionaleRegionale, addizionaleComunale, massimaleInps,
     showForfettario, showOrdinario, showSrl, showDipendente,
-    cardOrder
+    cardOrder, buildShareUrl
   }
 })
