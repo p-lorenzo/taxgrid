@@ -54,6 +54,9 @@ export const useTaxStore = defineStore('taxStore', () => {
   const showSrl = ref(true)
   const showDipendente = ref(true)
 
+  // Ordine delle Card
+  const cardOrder = ref<string[]>(['forfettario', 'ordinario', 'srl', 'dipendente'])
+
   // Sostituisce expensesMode mantenendo retrocompatibilità
   const expensesMode = computed({
     get: () => advancedMode.value ? 'advanced' : 'simple',
@@ -137,6 +140,7 @@ export const useTaxStore = defineStore('taxStore', () => {
         showOrdinario.value = parsed.showOrdinario ?? showOrdinario.value
         showSrl.value = parsed.showSrl ?? showSrl.value
         showDipendente.value = parsed.showDipendente ?? showDipendente.value
+        cardOrder.value = parsed.cardOrder ?? cardOrder.value
       } catch (e) {
         console.error('Failed to load state', e)
       }
@@ -153,7 +157,7 @@ export const useTaxStore = defineStore('taxStore', () => {
       srlDistribuzione, srlCassa, srlRiduzione50,
       mesiParagone, hasLavoroDipendente, ralDipendente, dipendenteFullTime,
       addizionaleRegionale, addizionaleComunale, massimaleInps,
-      showForfettario, showOrdinario, showSrl, showDipendente
+      showForfettario, showOrdinario, showSrl, showDipendente, cardOrder
     ],
     () => {
       localStorage.setItem('taxgrid_state', JSON.stringify({
@@ -182,7 +186,8 @@ export const useTaxStore = defineStore('taxStore', () => {
         showForfettario: showForfettario.value,
         showOrdinario: showOrdinario.value,
         showSrl: showSrl.value,
-        showDipendente: showDipendente.value
+        showDipendente: showDipendente.value,
+        cardOrder: cardOrder.value
       }))
     },
     { deep: true }
@@ -1171,6 +1176,7 @@ export const useTaxStore = defineStore('taxStore', () => {
     mesiParagone,
     hasLavoroDipendente, ralDipendente, dipendenteFullTime,
     addizionaleRegionale, addizionaleComunale, massimaleInps,
-    showForfettario, showOrdinario, showSrl, showDipendente
+    showForfettario, showOrdinario, showSrl, showDipendente,
+    cardOrder
   }
 })

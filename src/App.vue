@@ -5,6 +5,11 @@ import Footer from './components/Footer.vue'
 import ComparisonChart from './components/ComparisonChart.vue'
 import CalculationBreakdown from './components/CalculationBreakdown.vue'
 import ThemeToggle from './components/ThemeToggle.vue'
+import CardForfettario from './components/CardForfettario.vue'
+import CardOrdinario from './components/CardOrdinario.vue'
+import CardSrl from './components/CardSrl.vue'
+import CardDipendente from './components/CardDipendente.vue'
+import draggable from 'vuedraggable'
 import { computed, ref } from 'vue'
 
 const store = useTaxStore()
@@ -34,6 +39,26 @@ const isBreakdownOpen = ref(false)
 const breakdownTitle = ref('')
 const breakdownSteps = ref<any[]>([])
 const breakdownFinalNetto = ref(0)
+
+const visibleCards = computed<string[]>({
+  get: () => store.cardOrder.filter(id => {
+    if (id === 'forfettario') return store.showForfettario
+    if (id === 'ordinario') return store.showOrdinario
+    if (id === 'srl') return store.showSrl
+    if (id === 'dipendente') return store.showDipendente
+    return false
+  }),
+  set: (newOrder) => {
+    const hidden = store.cardOrder.filter(id => {
+      if (id === 'forfettario') return !store.showForfettario
+      if (id === 'ordinario') return !store.showOrdinario
+      if (id === 'srl') return !store.showSrl
+      if (id === 'dipendente') return !store.showDipendente
+      return true
+    })
+    store.cardOrder = [...newOrder, ...hidden]
+  }
+})
 
 const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente') => {
   if (regime === 'forfettario') {
@@ -400,362 +425,24 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
     <!-- Contenitore più largo per le card -->
     <div class="max-w-[1600px] w-full mx-auto mt-6">
       <!-- Regimes Grid -->
-      <div :class="['grid gap-6', gridColsClass]">
-        
-        <!-- Forfettario Card -->
-        <div v-if="store.showForfettario" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col transition-transform hover:-translate-y-1 hover:shadow-lg duration-300 print:break-inside-avoid">
-          <div class="bg-blue-50 dark:bg-blue-950/30 px-6 py-4 border-b border-blue-100 dark:border-blue-900/30">
-            <h3 class="text-xl font-bold text-blue-800 dark:text-blue-300">Regime Forfettario</h3>
+      <draggable
+        v-model="visibleCards"
+        item-key="id"
+        handle=".drag-handle"
+        tag="div"
+        :class="['grid gap-6', gridColsClass]"
+        :animation="200"
+        ghost-class="opacity-50"
+      >
+        <template #item="{ element }">
+          <div class="h-full">
+            <CardForfettario v-if="element === 'forfettario'" @open-breakdown="openBreakdown" />
+            <CardOrdinario v-else-if="element === 'ordinario'" @open-breakdown="openBreakdown" />
+            <CardSrl v-else-if="element === 'srl'" @open-breakdown="openBreakdown" />
+            <CardDipendente v-else-if="element === 'dipendente'" @open-breakdown="openBreakdown" />
           </div>
-          
-          <div class="p-6 flex-grow flex flex-col">
-            <!-- Warning Banner -->
-            <div v-if="store.advancedMode && store.hasLavoroDipendente && store.ralDipendente > 35000" class="mb-4 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/30 rounded-xl flex items-start gap-2.5 text-xs text-red-700 dark:text-red-300 leading-relaxed font-medium">
-              <svg class="w-4 h-4 shrink-0 mt-0.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-              <span>Attenzione: con redditi da lavoro dipendente &gt; 35.000€ non è consentito aderire al Regime Forfettario.</span>
-            </div>
-
-            <div class="mb-6 space-y-4">
-              <div class="flex items-center justify-between">
-                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Aliquota Startup (5%)</span>
-                <Switch
-                  v-model="store.forfettarioStartup"
-                  :class="store.forfettarioStartup ? 'bg-[#e2af0d]' : 'bg-gray-200 dark:bg-gray-600'"
-                  class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#e2af0d] focus:ring-offset-2 dark:focus:ring-offset-gray-800 print:hidden"
-                >
-                  <span class="sr-only">Toggle Startup</span>
-                  <span
-                    :class="store.forfettarioStartup ? 'translate-x-6' : 'translate-x-1'"
-                    class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                  />
-                </Switch>
-                <span class="hidden print:inline-block text-sm font-bold text-gray-900">
-                  {{ store.forfettarioStartup ? 'Sì' : 'No' }}
-                </span>
-              </div>
-              
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cassa Previdenziale</label>
-                <select v-model="store.forfettarioCassa" class="block w-full py-2 px-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg shadow-sm focus:ring-[#e2af0d] focus:border-[#e2af0d] sm:text-sm print:hidden">
-                  <option value="gestione_separata">Gestione Separata (Pro)</option>
-                  <option value="artigiani">Artigiani e Commercianti</option>
-                </select>
-                <div class="hidden print:block text-sm font-bold text-gray-900 py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg">
-                  {{ store.forfettarioCassa === 'gestione_separata' ? 'Gestione Separata (Pro)' : 'Artigiani e Commercianti' }}
-                </div>
-              </div>
-
-              <!-- INPS Reductions (Artigiani only) -->
-              <div v-if="store.forfettarioCassa === 'artigiani'" class="flex flex-col gap-3 pt-2">
-                <div class="flex items-center justify-between">
-                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                    Riduzione INPS 35%
-                    <div class="relative group inline-block ml-1.5 cursor-pointer align-middle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 print:hidden">
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                      <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded-xl shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none leading-relaxed normal-case font-normal">
-                        Esclusiva per Regime Forfettario (Artigiani/Commercianti). Riduce del 35% i contributi fissi e variabili. Attenzione: riduce proporzionalmente anche l'anzianità per la pensione.
-                        <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
-                      </div>
-                    </div>
-                  </span>
-                  <Switch
-                    v-model="store.forfettarioRiduzione35"
-                    :class="store.forfettarioRiduzione35 ? 'bg-[#e2af0d]' : 'bg-gray-200 dark:bg-gray-600'"
-                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#e2af0d] focus:ring-offset-2 dark:focus:ring-offset-gray-800 print:hidden"
-                  >
-                    <span class="sr-only">Toggle Riduzione 35%</span>
-                    <span
-                      :class="store.forfettarioRiduzione35 ? 'translate-x-6' : 'translate-x-1'"
-                      class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                    />
-                  </Switch>
-                  <span class="hidden print:inline-block text-sm font-bold text-gray-900">
-                    {{ store.forfettarioRiduzione35 ? 'Sì' : 'No' }}
-                  </span>
-                </div>
-
-                <div class="flex items-center justify-between">
-                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                    Riduzione INPS 50%
-                    <div class="relative group inline-block ml-1.5 cursor-pointer align-middle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 print:hidden">
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                      <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded-xl shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none leading-relaxed normal-case font-normal">
-                        Applicabile ai pensionati Over 65 INPS o a specifici neo-iscritti. Incompatibile con la riduzione del 35%.
-                        <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
-                      </div>
-                    </div>
-                  </span>
-                  <Switch
-                    v-model="store.forfettarioRiduzione50"
-                    :class="store.forfettarioRiduzione50 ? 'bg-[#e2af0d]' : 'bg-gray-200 dark:bg-gray-600'"
-                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#e2af0d] focus:ring-offset-2 dark:focus:ring-offset-gray-800 print:hidden"
-                  >
-                    <span class="sr-only">Toggle Riduzione 50%</span>
-                    <span
-                      :class="store.forfettarioRiduzione50 ? 'translate-x-6' : 'translate-x-1'"
-                      class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                    />
-                  </Switch>
-                  <span class="hidden print:inline-block text-sm font-bold text-gray-900">
-                    {{ store.forfettarioRiduzione50 ? 'Sì' : 'No' }}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div class="mt-auto space-y-3 pt-6 border-t border-gray-100 dark:border-gray-700">
-              <div class="flex justify-between text-sm">
-                <span class="text-gray-500 dark:text-gray-400">INPS Stimato</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ formatCurrency(store.forfettarioResult.inps) }}</span>
-              </div>
-              <div class="flex justify-between text-sm">
-                <span class="text-gray-500 dark:text-gray-400">Imposte (Sostitutiva)</span>
-                <span class="font-medium text-red-500">{{ formatCurrency(store.forfettarioResult.tasse) }}</span>
-              </div>
-              <div class="flex justify-between items-center pt-3 border-t border-dashed border-gray-200 dark:border-gray-700">
-                <span class="text-base font-semibold text-gray-900 dark:text-white">Netto in Tasca</span>
-                <span class="text-2xl font-bold text-[#e2af0d]">{{ formatCurrency(store.forfettarioResult.netto) }}</span>
-              </div>
-              <div class="flex justify-between items-center pt-2 text-sm text-gray-500 dark:text-gray-400">
-                <span>Paragone Mensile (su {{ store.mesiParagone }} mensilità)</span>
-                <span class="font-semibold text-gray-900 dark:text-white">{{ formatCurrency(store.forfettarioResult.nettoMensile) }}</span>
-              </div>
-              <button 
-                @click="openBreakdown('forfettario')"
-                class="w-full mt-3 py-2 px-4 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/20 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 text-xs font-semibold rounded-xl transition-all duration-200 border border-blue-150/40 dark:border-blue-900/30 cursor-pointer flex items-center justify-center gap-1.5 print:hidden"
-              >
-                <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
-                </svg>
-                Vedi dettaglio calcolo
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Ordinario Card -->
-        <div v-if="store.showOrdinario" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col transition-transform hover:-translate-y-1 hover:shadow-lg duration-300 print:break-inside-avoid">
-          <div class="bg-blue-50 dark:bg-blue-950/30 px-6 py-4 border-b border-blue-100 dark:border-blue-900/30">
-            <h3 class="text-xl font-bold text-blue-800 dark:text-blue-300">Regime Ordinario</h3>
-          </div>
-          
-          <div class="p-6 flex-grow flex flex-col">
-            <div class="mb-6 space-y-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cassa Previdenziale</label>
-                <select v-model="store.ordinarioCassa" class="block w-full py-2 px-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg shadow-sm focus:ring-[#e2af0d] focus:border-[#e2af0d] sm:text-sm print:hidden">
-                  <option value="gestione_separata">Gestione Separata (Pro)</option>
-                  <option value="artigiani">Artigiani e Commercianti</option>
-                </select>
-                <div class="hidden print:block text-sm font-bold text-gray-900 py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg">
-                  {{ store.ordinarioCassa === 'gestione_separata' ? 'Gestione Separata (Pro)' : 'Artigiani e Commercianti' }}
-                </div>
-              </div>
-
-              <!-- INPS Reductions (Artigiani only) -->
-              <div v-if="store.ordinarioCassa === 'artigiani'" class="flex flex-col gap-3 pt-2">
-                <div class="flex items-center justify-between">
-                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                    Riduzione INPS 50%
-                    <div class="relative group inline-block ml-1.5 cursor-pointer align-middle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 print:hidden">
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                      <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded-xl shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none leading-relaxed normal-case font-normal">
-                        Applicabile ai pensionati Over 65 (già titolari di pensione INPS) o a specifici neo-iscritti alla gestione Artigiani/Commercianti.
-                        <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
-                      </div>
-                    </div>
-                  </span>
-                  <Switch
-                    v-model="store.ordinarioRiduzione50"
-                    :class="store.ordinarioRiduzione50 ? 'bg-[#e2af0d]' : 'bg-gray-200 dark:bg-gray-600'"
-                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#e2af0d] focus:ring-offset-2 dark:focus:ring-offset-gray-800 print:hidden"
-                  >
-                    <span class="sr-only">Toggle Riduzione 50%</span>
-                    <span
-                      :class="store.ordinarioRiduzione50 ? 'translate-x-6' : 'translate-x-1'"
-                      class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                    />
-                  </Switch>
-                  <span class="hidden print:inline-block text-sm font-bold text-gray-900">
-                    {{ store.ordinarioRiduzione50 ? 'Sì' : 'No' }}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div class="mt-auto space-y-3 pt-6 border-t border-gray-100 dark:border-gray-700">
-              <div class="flex justify-between text-sm">
-                <span class="text-gray-500 dark:text-gray-400">INPS Stimato</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ formatCurrency(store.ordinarioResult.inps) }}</span>
-              </div>
-              <div class="flex justify-between text-sm">
-                <span class="text-gray-500 dark:text-gray-400">Imposte (IRPEF)</span>
-                <span class="font-medium text-red-500">{{ formatCurrency(store.ordinarioResult.tasse) }}</span>
-              </div>
-              <div class="flex justify-between items-center pt-3 border-t border-dashed border-gray-200 dark:border-gray-700">
-                <span class="text-base font-semibold text-gray-900 dark:text-white">Netto in Tasca</span>
-                <span class="text-2xl font-bold text-[#e2af0d]">{{ formatCurrency(store.ordinarioResult.netto) }}</span>
-              </div>
-              <div class="flex justify-between items-center pt-2 text-sm text-gray-500 dark:text-gray-400">
-                <span>Paragone Mensile (su {{ store.mesiParagone }} mensilità)</span>
-                <span class="font-semibold text-gray-900 dark:text-white">{{ formatCurrency(store.ordinarioResult.nettoMensile) }}</span>
-              </div>
-              <button 
-                @click="openBreakdown('ordinario')"
-                class="w-full mt-3 py-2 px-4 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/20 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 text-xs font-semibold rounded-xl transition-all duration-200 border border-blue-150/40 dark:border-blue-900/30 cursor-pointer flex items-center justify-center gap-1.5 print:hidden"
-              >
-                <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
-                </svg>
-                Vedi dettaglio calcolo
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- SRL Card -->
-        <div v-if="store.showSrl" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col transition-transform hover:-translate-y-1 hover:shadow-lg duration-300 print:break-inside-avoid">
-          <div class="bg-blue-50 dark:bg-blue-950/30 px-6 py-4 border-b border-blue-100 dark:border-blue-900/30">
-            <h3 class="text-xl font-bold text-blue-800 dark:text-blue-300">S.R.L.</h3>
-          </div>
-          
-          <div class="p-6 flex-grow flex flex-col">
-            <div class="mb-6 space-y-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Strategia Distribuzione</label>
-                <select v-model="store.srlDistribuzione" class="block w-full py-2 px-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg shadow-sm focus:ring-[#e2af0d] focus:border-[#e2af0d] sm:text-sm print:hidden">
-                  <option value="compenso">Tutto Compenso Amministratore</option>
-                  <option value="utili">Distribuzione Utili (IRES+IRAP+26%)</option>
-                </select>
-                <div class="hidden print:block text-sm font-bold text-gray-900 py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg">
-                  {{ store.srlDistribuzione === 'compenso' ? 'Tutto Compenso Amministratore' : 'Distribuzione Utili (IRES+IRAP+26%)' }}
-                </div>
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cassa Previdenziale</label>
-                <select v-model="store.srlCassa" class="block w-full py-2 px-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg shadow-sm focus:ring-[#e2af0d] focus:border-[#e2af0d] sm:text-sm print:hidden">
-                  <option value="gestione_separata">Gestione Separata (Pro)</option>
-                  <option value="artigiani">Artigiani e Commercianti</option>
-                </select>
-                <div class="hidden print:block text-sm font-bold text-gray-900 py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg">
-                  {{ store.srlCassa === 'gestione_separata' ? 'Gestione Separata (Pro)' : 'Artigiani e Commercianti' }}
-                </div>
-              </div>
-
-              <!-- INPS Reductions (Artigiani only) -->
-              <div v-if="store.srlCassa === 'artigiani'" class="flex flex-col gap-3 pt-2">
-                <div class="flex items-center justify-between">
-                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                    Riduzione INPS 50%
-                    <div class="relative group inline-block ml-1.5 cursor-pointer align-middle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 print:hidden">
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                      <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded-xl shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none leading-relaxed normal-case font-normal">
-                        Applicabile ai pensionati Over 65 (già titolari di pensione INPS) o a specifici neo-iscritti alla gestione Artigiani/Commercianti.
-                        <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
-                      </div>
-                    </div>
-                  </span>
-                  <Switch
-                    v-model="store.srlRiduzione50"
-                    :class="store.srlRiduzione50 ? 'bg-[#e2af0d]' : 'bg-gray-200 dark:bg-gray-600'"
-                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#e2af0d] focus:ring-offset-2 dark:focus:ring-offset-gray-800 print:hidden"
-                  >
-                    <span class="sr-only">Toggle Riduzione 50%</span>
-                    <span
-                      :class="store.srlRiduzione50 ? 'translate-x-6' : 'translate-x-1'"
-                      class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                    />
-                  </Switch>
-                  <span class="hidden print:inline-block text-sm font-bold text-gray-900">
-                    {{ store.srlRiduzione50 ? 'Sì' : 'No' }}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div class="mt-auto space-y-3 pt-6 border-t border-gray-100 dark:border-gray-700">
-              <div class="flex justify-between text-sm">
-                <span class="text-gray-500 dark:text-gray-400">INPS (Socio/Amministratore)</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ formatCurrency(store.srlResult.inps) }}</span>
-              </div>
-              <div class="flex justify-between text-sm">
-                <span class="text-gray-500 dark:text-gray-400">Imposte (IRES+IRAP/IRPEF)</span>
-                <span class="font-medium text-red-500">{{ formatCurrency(store.srlResult.tasse) }}</span>
-              </div>
-              <div class="flex justify-between items-center pt-3 border-t border-dashed border-gray-200 dark:border-gray-700">
-                <span class="text-base font-semibold text-gray-900 dark:text-white">Netto in Tasca (Socio)</span>
-                <span class="text-2xl font-bold text-[#e2af0d]">{{ formatCurrency(store.srlResult.netto) }}</span>
-              </div>
-              <div class="flex justify-between items-center pt-2 text-sm text-gray-500 dark:text-gray-400">
-                <span>Paragone Mensile (su {{ store.mesiParagone }} mensilità)</span>
-                <span class="font-semibold text-gray-900 dark:text-white">{{ formatCurrency(store.srlResult.nettoMensile) }}</span>
-              </div>
-              <button 
-                @click="openBreakdown('srl')"
-                class="w-full mt-3 py-2 px-4 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/20 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 text-xs font-semibold rounded-xl transition-all duration-200 border border-blue-150/40 dark:border-blue-900/30 cursor-pointer flex items-center justify-center gap-1.5 print:hidden"
-              >
-                <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
-                </svg>
-                Vedi dettaglio calcolo
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Dipendente Card -->
-        <div v-if="store.showDipendente" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col transition-transform hover:-translate-y-1 hover:shadow-lg duration-300 print:break-inside-avoid">
-          <div class="bg-blue-50 dark:bg-blue-950/30 px-6 py-4 border-b border-blue-100 dark:border-blue-900/30">
-            <h3 class="text-xl font-bold text-blue-800 dark:text-blue-300">Dipendente</h3>
-          </div>
-          
-          <div class="p-6 flex-grow flex flex-col">
-            <div class="mb-6 space-y-4">
-              <div class="p-3 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-400">
-                <p>
-                  Il <strong>Fatturato Annuo ({{ formatCurrency(store.fatturato) }})</strong> viene considerato come il
-                  <strong>Costo Aziendale Totale</strong>. Da qui si ricava la RAL sottraendo i contributi a carico dell'azienda.
-                </p>
-              </div>
-
-              <div class="flex justify-between text-sm py-1">
-                <span class="text-gray-500 dark:text-gray-400">RAL Calcolata</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ formatCurrency(store.dipendenteResult.ral) }}</span>
-              </div>
-            </div>
-
-            <div class="mt-auto space-y-3 pt-6 border-t border-gray-100 dark:border-gray-700">
-              <div class="flex justify-between text-sm">
-                <span class="text-gray-500 dark:text-gray-400">INPS Totale (Dip. + Az.)</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ formatCurrency(store.dipendenteResult.inps) }}</span>
-              </div>
-              <div class="flex justify-between text-sm">
-                <span class="text-gray-500 dark:text-gray-400">Imposte (IRPEF + Add.)</span>
-                <span class="font-medium text-red-500">{{ formatCurrency(store.dipendenteResult.tasse) }}</span>
-              </div>
-              <div class="flex justify-between items-center pt-3 border-t border-dashed border-gray-200 dark:border-gray-700">
-                <span class="text-base font-semibold text-gray-900 dark:text-white">Netto in Tasca</span>
-                <span class="text-2xl font-bold text-[#e2af0d]">{{ formatCurrency(store.dipendenteResult.netto) }}</span>
-              </div>
-              <div class="flex justify-between items-center pt-2 text-sm text-gray-500 dark:text-gray-400">
-                <span>Paragone Mensile (su {{ store.mesiParagone }} mensilità)</span>
-                <span class="font-semibold text-gray-900 dark:text-white">{{ formatCurrency(store.dipendenteResult.nettoMensile) }}</span>
-              </div>
-              <button 
-                @click="openBreakdown('dipendente')"
-                class="w-full mt-3 py-2 px-4 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/20 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 text-xs font-semibold rounded-xl transition-all duration-200 border border-blue-150/40 dark:border-blue-900/30 cursor-pointer flex items-center justify-center gap-1.5 print:hidden"
-              >
-                <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
-                </svg>
-                Vedi dettaglio calcolo
-              </button>
-            </div>
-          </div>
-        </div>
-
-      </div>
+        </template>
+      </draggable>
     </div>
 
     <!-- Grafico di Confronto (spostato in fondo, sotto le card) -->

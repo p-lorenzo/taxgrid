@@ -13,4 +13,5 @@
 - **2026-06-17**: Added detailed mathematical breakdown step-by-step modal (CalculationBreakdown) for each tax regime (Forfettario, Ordinario, SRL, Dipendente) showing starting fatturato, expenses, cassa INPS details, IRPEF brackets, corporate taxes, and regional/communal addizionali.
 - **2026-06-17**: Implemented interactive theme toggle (light/dark/system theme selection) persisted via localStorage with Tailwind class variant custom utility and FOUC prevention.
 - **2026-06-17**: Spostata la sezione dei grafici (ComparisonChart) in fondo alla pagina sotto le card dei regimi con layout coerente a max-w-[1600px] e spaziatura mt-12.
+- **2026-06-17**: Added Drag & Drop card sorting for tax regimes, extracted card markups into separate Vue components, and persisted the custom order in localStorage.
 

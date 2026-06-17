@@ -486,4 +486,38 @@ describe('TaxStore Advanced Parameters (RAL, Local Taxes, INPS Cap, Full-Time Ex
   })
 })
 
+describe('TaxStore Card Reordering', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    setActivePinia(createPinia())
+  })
+
+  it('should initialize cardOrder with default order', () => {
+    const store = useTaxStore()
+    expect(store.cardOrder).toEqual(['forfettario', 'ordinario', 'srl', 'dipendente'])
+  })
+
+  it('should persist cardOrder changes to localStorage', async () => {
+    const store = useTaxStore()
+    const newOrder = ['srl', 'forfettario', 'dipendente', 'ordinario']
+    store.cardOrder = newOrder
+    
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    
+    const savedState = JSON.parse(localStorage.getItem('taxgrid_state') || '{}')
+    expect(savedState.cardOrder).toEqual(newOrder)
+  })
+
+  it('should load cardOrder from localStorage', () => {
+    const savedOrder = ['dipendente', 'srl', 'ordinario', 'forfettario']
+    localStorage.setItem('taxgrid_state', JSON.stringify({
+      cardOrder: savedOrder
+    }))
+
+    const store = useTaxStore()
+    expect(store.cardOrder).toEqual(savedOrder)
+  })
+})
+
+
 

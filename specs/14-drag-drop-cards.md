@@ -13,3 +13,8 @@ Permettere all'utente di riordinare le card dei regimi (Forfettario, Ordinario, 
 ## Implementazione
 - Installare `vuedraggable@next`.
 - Assicurarsi che le animazioni di transizione (come quelle create dalle classi flex o grid) cooperino bene con il drag and drop per offrire un feedback visivo immediato.
+
+## Status: COMPLETE
+
+<!-- NR_OF_TRIES: 1 -->
+
