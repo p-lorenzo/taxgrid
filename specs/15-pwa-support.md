@@ -1,5 +1,7 @@
 # Spec 15: Supporto PWA (Progressive Web App)
 
+## Status: COMPLETE
+
 ## Obiettivo
 Trasformare TaxGrid in un'applicazione installabile su smartphone e desktop e capace di funzionare offline (dato che non vi sono chiamate backend necessarie per i calcoli).
 
@@ -13,3 +15,8 @@ Trasformare TaxGrid in un'applicazione installabile su smartphone e desktop e ca
 ## Implementazione
 - Eseguire `npm install -D vite-plugin-pwa`.
 - Creare il setup basilare in `vite.config.ts` secondo la documentazione ufficiale.
+
+---
+
+<!-- NR_OF_TRIES: 1 -->
+
