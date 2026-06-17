@@ -1,5 +1,7 @@
 # Spec 10: Stampa e Report PDF
 
+## Status: COMPLETE
+
 ## Obiettivo
 Fornire all'utente la possibilità di generare un report pulito (PDF o stampa cartacea) della propria simulazione fiscale, pronto per essere inviato al commercialista o per uso interno.
 
@@ -15,3 +17,5 @@ Fornire all'utente la possibilità di generare un report pulito (PDF o stampa ca
 
 ## Implementazione
 - Utilizzare in abbondanza utility classes di Tailwind con il prefisso `print:` (es. `print:hidden`, `print:block`, `print:bg-white`, `print:text-black`).
+
+<!-- NR_OF_TRIES: 1 -->

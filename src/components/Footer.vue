@@ -1,5 +1,5 @@
 <template>
-  <footer class="mt-16 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 py-12 text-sm text-gray-600 dark:text-gray-400 transition-colors duration-300">
+  <footer class="mt-16 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 py-12 text-sm text-gray-600 dark:text-gray-400 transition-colors duration-300 print:hidden">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <!-- Grid layout for main content -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">

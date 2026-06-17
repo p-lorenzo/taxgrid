@@ -9,3 +9,4 @@
 - **2026-06-17**: Reworked advanced parameters section (RAL cumulo IRPEF, 24% GS rate, full-time Artigiani exemption, local addizionali, custom INPS cap, and layout changes).
 - **2026-06-17**: Added static footer with credits (Lorenzo Pesce), GitHub and LinkedIn links, Open Source repository and issues links, and a legal disclaimer for 2025.
 - **2026-06-17**: Added custom, responsive interactive ComparisonChart (stacked bar chart) showing taxes, INPS, expenses, and net pocket composition with animations and dark mode support.
+- **2026-06-17**: Implemented print-friendly layout and PDF report generation button for global controls, parameters, and comparison cards.
