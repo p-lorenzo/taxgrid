@@ -40,7 +40,7 @@ const formatCurrency = (val: number) => {
           Parametri Globali
         </h2>
         
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Fatturato Annuo Stimato</label>
             <div class="relative">
@@ -109,6 +109,22 @@ const formatCurrency = (val: number) => {
             </select>
             <p class="text-xs text-gray-500 mt-1">Solo per Forfettario.</p>
           </div>
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Confronto Stipendio</label>
+              <span class="text-xs font-semibold text-blue-600 dark:text-blue-400">Dividi per: {{ store.mesiParagone }} mensilità</span>
+            </div>
+            <div class="pt-2">
+              <input type="range" v-model.number="store.mesiParagone" min="1" max="15" step="1" class="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#e2af0d] focus:outline-none focus:ring-2 focus:ring-[#e2af0d] focus:ring-offset-2 dark:focus:ring-offset-gray-800" />
+              <div class="flex justify-between text-[10px] text-gray-400 dark:text-gray-500 px-1 mt-1 font-medium">
+                <span>1</span>
+                <span>5</span>
+                <span>10</span>
+                <span>15</span>
+              </div>
+            </div>
+            <p class="text-xs text-gray-500 mt-1">Confronta il netto con uno stipendio mensile.</p>
+          </div>
         </div>
       </div>
 
@@ -160,6 +176,10 @@ const formatCurrency = (val: number) => {
                 <span class="text-base font-semibold text-gray-900 dark:text-white">Netto in Tasca</span>
                 <span class="text-2xl font-bold text-[#e2af0d]">{{ formatCurrency(store.forfettarioResult.netto) }}</span>
               </div>
+              <div class="flex justify-between items-center pt-2 text-sm text-gray-500 dark:text-gray-400">
+                <span>Paragone Mensile (su {{ store.mesiParagone }} mensilità)</span>
+                <span class="font-semibold text-gray-900 dark:text-white">{{ formatCurrency(store.forfettarioResult.nettoMensile) }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -194,6 +214,10 @@ const formatCurrency = (val: number) => {
                 <span class="text-base font-semibold text-gray-900 dark:text-white">Netto in Tasca</span>
                 <span class="text-2xl font-bold text-[#e2af0d]">{{ formatCurrency(store.ordinarioResult.netto) }}</span>
               </div>
+              <div class="flex justify-between items-center pt-2 text-sm text-gray-500 dark:text-gray-400">
+                <span>Paragone Mensile (su {{ store.mesiParagone }} mensilità)</span>
+                <span class="font-semibold text-gray-900 dark:text-white">{{ formatCurrency(store.ordinarioResult.nettoMensile) }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -227,6 +251,10 @@ const formatCurrency = (val: number) => {
               <div class="flex justify-between items-center pt-3 border-t border-dashed border-gray-200 dark:border-gray-700">
                 <span class="text-base font-semibold text-gray-900 dark:text-white">Netto in Tasca (Socio)</span>
                 <span class="text-2xl font-bold text-[#e2af0d]">{{ formatCurrency(store.srlResult.netto) }}</span>
+              </div>
+              <div class="flex justify-between items-center pt-2 text-sm text-gray-500 dark:text-gray-400">
+                <span>Paragone Mensile (su {{ store.mesiParagone }} mensilità)</span>
+                <span class="font-semibold text-gray-900 dark:text-white">{{ formatCurrency(store.srlResult.nettoMensile) }}</span>
               </div>
             </div>
           </div>

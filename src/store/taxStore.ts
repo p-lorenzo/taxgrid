@@ -27,6 +27,8 @@ export const useTaxStore = defineStore('taxStore', () => {
   const speseDetraibili = ref(0)
   const atecoCategory = ref('professionisti')
   const atecoCoef = ref(0.78) // default 78% for professionisti
+  const mesiParagone = ref(12) // Default a 12 mensilità
+
 
   // Sync category selection to coefficient
   watch(atecoCategory, (newCatId) => {
@@ -71,6 +73,7 @@ export const useTaxStore = defineStore('taxStore', () => {
         forfettarioStartup.value = parsed.forfettarioStartup ?? forfettarioStartup.value
         ordinarioCassa.value = parsed.ordinarioCassa ?? ordinarioCassa.value
         srlDistribuzione.value = parsed.srlDistribuzione ?? srlDistribuzione.value
+        mesiParagone.value = parsed.mesiParagone ?? mesiParagone.value
       } catch (e) {
         console.error('Failed to load state', e)
       }
@@ -80,7 +83,7 @@ export const useTaxStore = defineStore('taxStore', () => {
   loadState()
 
   watch(
-    [fatturato, expensesMode, speseDeducibili, speseDetraibili, atecoCategory, atecoCoef, forfettarioCassa, forfettarioStartup, ordinarioCassa, srlDistribuzione],
+    [fatturato, expensesMode, speseDeducibili, speseDetraibili, atecoCategory, atecoCoef, forfettarioCassa, forfettarioStartup, ordinarioCassa, srlDistribuzione, mesiParagone],
     () => {
       localStorage.setItem('taxgrid_state', JSON.stringify({
         fatturato: fatturato.value,
@@ -92,7 +95,8 @@ export const useTaxStore = defineStore('taxStore', () => {
         forfettarioCassa: forfettarioCassa.value,
         forfettarioStartup: forfettarioStartup.value,
         ordinarioCassa: ordinarioCassa.value,
-        srlDistribuzione: srlDistribuzione.value
+        srlDistribuzione: srlDistribuzione.value,
+        mesiParagone: mesiParagone.value
       }))
     },
     { deep: true }
@@ -115,8 +119,9 @@ export const useTaxStore = defineStore('taxStore', () => {
     const tasse = imponibileNetto * taxRate
     
     const netto = fatturato.value - inps - tasse
+    const nettoMensile = netto / mesiParagone.value
     
-    return { inps, tasse, netto }
+    return { inps, tasse, netto, nettoMensile }
   })
 
   // Calculations: Ordinario
@@ -143,7 +148,8 @@ export const useTaxStore = defineStore('taxStore', () => {
     const irpefNetta = Math.max(irpefLorda - scontoDetraibili, 0)
 
     const netto = fatturato.value - speseDeducibili.value - inps - irpefNetta
-    return { inps, tasse: irpefNetta, netto }
+    const nettoMensile = netto / mesiParagone.value
+    return { inps, tasse: irpefNetta, netto, nettoMensile }
   })
 
   // Helper: Calcolo IRPEF Lorda (Scaglioni 2024)
@@ -201,10 +207,12 @@ export const useTaxStore = defineStore('taxStore', () => {
       netto = utileNetto - tasseDividendi;
     }
 
+    const nettoMensile = netto / mesiParagone.value
     return { 
       inps: inpsTotaleSostenutoDaUtente, 
       tasse: tasseTotali, 
-      netto 
+      netto,
+      nettoMensile
     }
   })
 
@@ -213,6 +221,7 @@ export const useTaxStore = defineStore('taxStore', () => {
     fatturato, expensesMode, speseDeducibili, speseDetraibili, atecoCategory, atecoCoef, ATECO_CATEGORIES,
     forfettarioCassa, forfettarioStartup,
     ordinarioCassa, srlDistribuzione,
-    forfettarioResult, ordinarioResult, srlResult
+    forfettarioResult, ordinarioResult, srlResult,
+    mesiParagone
   }
 })

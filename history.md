@@ -4,3 +4,5 @@
 - **2026-06-17**: Updated color scheme to uniform dark blue and yellow (#e2af0d) across all tax regimes.
 - **2026-06-17**: Implemented correct tax and INPS calculation logic for S.R.L. administrator compensation strategy.
 - **2026-06-17**: Introduced Simple/Advanced expenses mode toggle with separate deductible and detraibile (19%) expenses.
+- **2026-06-17**: Added monthly salary comparison slider and dynamic row to show monthly income comparisons.
+

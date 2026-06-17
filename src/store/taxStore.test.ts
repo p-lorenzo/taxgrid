@@ -230,3 +230,51 @@ describe('TaxStore Expenses Mode (Simple / Advanced)', () => {
   })
 })
 
+describe('TaxStore Monthly Salary Comparison Logic', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    setActivePinia(createPinia())
+  })
+
+  it('should initialize with default 12 months for comparison', () => {
+    const store = useTaxStore()
+    expect(store.mesiParagone).toBe(12)
+  })
+
+  it('should calculate nettoMensile correctly for all regimes', () => {
+    const store = useTaxStore()
+    store.fatturato = 50000
+    store.mesiParagone = 12
+
+    const forfettarioNetto = store.forfettarioResult.netto
+    expect(store.forfettarioResult.nettoMensile).toBeCloseTo(forfettarioNetto / 12, 2)
+
+    const ordinarioNetto = store.ordinarioResult.netto
+    expect(store.ordinarioResult.nettoMensile).toBeCloseTo(ordinarioNetto / 12, 2)
+
+    const srlNetto = store.srlResult.netto
+    expect(store.srlResult.nettoMensile).toBeCloseTo(srlNetto / 12, 2)
+  })
+
+  it('should update calculations immediately when mesiParagone changes', () => {
+    const store = useTaxStore()
+    store.fatturato = 50000
+    store.mesiParagone = 14
+
+    const forfettarioNetto = store.forfettarioResult.netto
+    expect(store.forfettarioResult.nettoMensile).toBeCloseTo(forfettarioNetto / 14, 2)
+  })
+
+  it('should persist and load mesiParagone to/from localStorage', () => {
+    localStorage.setItem('taxgrid_state', JSON.stringify({
+      fatturato: 60000,
+      speseDeducibili: 8000,
+      mesiParagone: 13
+    }))
+
+    const store = useTaxStore()
+    expect(store.mesiParagone).toBe(13)
+  })
+})
+
+
