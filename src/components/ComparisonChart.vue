@@ -123,7 +123,7 @@ const chartData = computed(() => {
           Confronto Visivo dei Regimi
         </h2>
         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          Ripartizione percentuale del costo totale (€ {{ formatCurrency(store.fatturato) }})
+          Ripartizione percentuale del costo totale ({{ formatCurrency(store.fatturato) }})
         </p>
       </div>
 
