@@ -161,6 +161,57 @@ const formatCurrency = (val: number) => {
                   <option value="artigiani">Artigiani e Commercianti</option>
                 </select>
               </div>
+
+              <!-- INPS Reductions (Artigiani only) -->
+              <div v-if="store.forfettarioCassa === 'artigiani'" class="flex flex-col gap-3 pt-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                    Riduzione INPS 35%
+                    <div class="relative group inline-block ml-1.5 cursor-pointer align-middle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                      <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded-xl shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none leading-relaxed normal-case font-normal">
+                        Esclusiva per Regime Forfettario (Artigiani/Commercianti). Riduce del 35% i contributi fissi e variabili. Attenzione: riduce proporzionalmente anche l'anzianità per la pensione.
+                        <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
+                      </div>
+                    </div>
+                  </span>
+                  <Switch
+                    v-model="store.forfettarioRiduzione35"
+                    :class="store.forfettarioRiduzione35 ? 'bg-[#e2af0d]' : 'bg-gray-200 dark:bg-gray-600'"
+                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#e2af0d] focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+                  >
+                    <span class="sr-only">Toggle Riduzione 35%</span>
+                    <span
+                      :class="store.forfettarioRiduzione35 ? 'translate-x-6' : 'translate-x-1'"
+                      class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                    />
+                  </Switch>
+                </div>
+
+                <div class="flex items-center justify-between">
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                    Riduzione INPS 50%
+                    <div class="relative group inline-block ml-1.5 cursor-pointer align-middle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                      <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded-xl shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none leading-relaxed normal-case font-normal">
+                        Applicabile ai pensionati Over 65 INPS o a specifici neo-iscritti. Incompatibile con la riduzione del 35%.
+                        <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
+                      </div>
+                    </div>
+                  </span>
+                  <Switch
+                    v-model="store.forfettarioRiduzione50"
+                    :class="store.forfettarioRiduzione50 ? 'bg-[#e2af0d]' : 'bg-gray-200 dark:bg-gray-600'"
+                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#e2af0d] focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+                  >
+                    <span class="sr-only">Toggle Riduzione 50%</span>
+                    <span
+                      :class="store.forfettarioRiduzione50 ? 'translate-x-6' : 'translate-x-1'"
+                      class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                    />
+                  </Switch>
+                </div>
+              </div>
             </div>
 
             <div class="mt-auto space-y-3 pt-6 border-t border-gray-100 dark:border-gray-700">
@@ -198,6 +249,33 @@ const formatCurrency = (val: number) => {
                   <option value="gestione_separata">Gestione Separata (Pro)</option>
                   <option value="artigiani">Artigiani e Commercianti</option>
                 </select>
+              </div>
+
+              <!-- INPS Reductions (Artigiani only) -->
+              <div v-if="store.ordinarioCassa === 'artigiani'" class="flex flex-col gap-3 pt-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                    Riduzione INPS 50%
+                    <div class="relative group inline-block ml-1.5 cursor-pointer align-middle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                      <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded-xl shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none leading-relaxed normal-case font-normal">
+                        Applicabile ai pensionati Over 65 (già titolari di pensione INPS) o a specifici neo-iscritti alla gestione Artigiani/Commercianti.
+                        <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
+                      </div>
+                    </div>
+                  </span>
+                  <Switch
+                    v-model="store.ordinarioRiduzione50"
+                    :class="store.ordinarioRiduzione50 ? 'bg-[#e2af0d]' : 'bg-gray-200 dark:bg-gray-600'"
+                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#e2af0d] focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+                  >
+                    <span class="sr-only">Toggle Riduzione 50%</span>
+                    <span
+                      :class="store.ordinarioRiduzione50 ? 'translate-x-6' : 'translate-x-1'"
+                      class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                    />
+                  </Switch>
+                </div>
               </div>
             </div>
 
@@ -237,11 +315,46 @@ const formatCurrency = (val: number) => {
                   <option value="utili">Distribuzione Utili (IRES+IRAP+26%)</option>
                 </select>
               </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cassa Previdenziale</label>
+                <select v-model="store.srlCassa" class="block w-full py-2 px-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg shadow-sm focus:ring-[#e2af0d] focus:border-[#e2af0d] sm:text-sm">
+                  <option value="gestione_separata">Gestione Separata (Pro)</option>
+                  <option value="artigiani">Artigiani e Commercianti</option>
+                </select>
+              </div>
+
+              <!-- INPS Reductions (Artigiani only) -->
+              <div v-if="store.srlCassa === 'artigiani'" class="flex flex-col gap-3 pt-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                    Riduzione INPS 50%
+                    <div class="relative group inline-block ml-1.5 cursor-pointer align-middle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                      <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded-xl shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none leading-relaxed normal-case font-normal">
+                        Applicabile ai pensionati Over 65 (già titolari di pensione INPS) o a specifici neo-iscritti alla gestione Artigiani/Commercianti.
+                        <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
+                      </div>
+                    </div>
+                  </span>
+                  <Switch
+                    v-model="store.srlRiduzione50"
+                    :class="store.srlRiduzione50 ? 'bg-[#e2af0d]' : 'bg-gray-200 dark:bg-gray-600'"
+                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#e2af0d] focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+                  >
+                    <span class="sr-only">Toggle Riduzione 50%</span>
+                    <span
+                      :class="store.srlRiduzione50 ? 'translate-x-6' : 'translate-x-1'"
+                      class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                    />
+                  </Switch>
+                </div>
+              </div>
             </div>
 
             <div class="mt-auto space-y-3 pt-6 border-t border-gray-100 dark:border-gray-700">
               <div class="flex justify-between text-sm">
-                <span class="text-gray-500 dark:text-gray-400">INPS (Amministratore)</span>
+                <span class="text-gray-500 dark:text-gray-400">INPS (Socio/Amministratore)</span>
                 <span class="font-medium text-gray-900 dark:text-white">{{ formatCurrency(store.srlResult.inps) }}</span>
               </div>
               <div class="flex justify-between text-sm">

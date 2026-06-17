@@ -5,4 +5,5 @@
 - **2026-06-17**: Implemented correct tax and INPS calculation logic for S.R.L. administrator compensation strategy.
 - **2026-06-17**: Introduced Simple/Advanced expenses mode toggle with separate deductible and detraibile (19%) expenses.
 - **2026-06-17**: Added monthly salary comparison slider and dynamic row to show monthly income comparisons.
+- **2026-06-17**: Added INPS contribution reductions (35% and 50%) for eligible regimes under Artigiani & Commercianti cassa, with info tooltips and state synchronization.
 

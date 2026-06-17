@@ -277,4 +277,125 @@ describe('TaxStore Monthly Salary Comparison Logic', () => {
   })
 })
 
+describe('TaxStore INPS Reductions Logic', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    setActivePinia(createPinia())
+  })
+
+  it('should initialize with default values', () => {
+    const store = useTaxStore()
+    expect(store.forfettarioRiduzione35).toBe(false)
+    expect(store.forfettarioRiduzione50).toBe(false)
+    expect(store.ordinarioRiduzione50).toBe(false)
+    expect(store.srlCassa).toBe('gestione_separata')
+    expect(store.srlRiduzione50).toBe(false)
+  })
+
+  it('should guarantee mutual exclusivity for Forfettario reductions', async () => {
+    const store = useTaxStore()
+    store.forfettarioRiduzione35 = true
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(store.forfettarioRiduzione50).toBe(false)
+
+    store.forfettarioRiduzione50 = true
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(store.forfettarioRiduzione35).toBe(false)
+  })
+
+  it('should reset reduction flags when cassa changes to gestione_separata', async () => {
+    const store = useTaxStore()
+    store.forfettarioCassa = 'artigiani'
+    store.forfettarioRiduzione35 = true
+    
+    store.ordinarioCassa = 'artigiani'
+    store.ordinarioRiduzione50 = true
+    
+    store.srlCassa = 'artigiani'
+    store.srlRiduzione50 = true
+    
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    store.forfettarioCassa = 'gestione_separata'
+    store.ordinarioCassa = 'gestione_separata'
+    store.srlCassa = 'gestione_separata'
+    
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    
+    expect(store.forfettarioRiduzione35).toBe(false)
+    expect(store.forfettarioRiduzione50).toBe(false)
+    expect(store.ordinarioRiduzione50).toBe(false)
+    expect(store.srlRiduzione50).toBe(false)
+  })
+
+  it('should apply 35% and 50% reductions to Forfettario INPS correctly', async () => {
+    const store = useTaxStore()
+    store.fatturato = 50000
+    store.forfettarioCassa = 'artigiani'
+    
+    // Base Artigiani for 50000 * 0.78 = 39000
+    // inpsMinimale = 4208
+    // redditoEccedente = 39000 - 17504 = 21496
+    // inpsEccedente = 21496 * 0.24 = 5159.04
+    // totaleBase = 4208 + 5159.04 = 9367.04
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const baseInps = store.forfettarioResult.inps
+    expect(baseInps).toBeCloseTo(9367.04, 2)
+
+    // Apply 35% reduction
+    store.forfettarioRiduzione35 = true
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(store.forfettarioResult.inps).toBeCloseTo(baseInps * 0.65, 2)
+
+    // Apply 50% reduction instead
+    store.forfettarioRiduzione50 = true
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(store.forfettarioResult.inps).toBeCloseTo(baseInps * 0.50, 2)
+  })
+
+  it('should apply 50% reduction to Ordinario INPS correctly and affect tax calculation', async () => {
+    const store = useTaxStore()
+    store.fatturato = 50000
+    store.speseDeducibili = 5000
+    store.ordinarioCassa = 'artigiani'
+    
+    // imponibileBase = 45000
+    // Base INPS: 4208 + (45000 - 17504) * 0.24 = 4208 + 27496 * 0.24 = 10807.04
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const baseInps = store.ordinarioResult.inps
+    const baseTasse = store.ordinarioResult.tasse
+    const baseNetto = store.ordinarioResult.netto
+    expect(baseInps).toBeCloseTo(10807.04, 2)
+
+    // Apply 50% reduction
+    store.ordinarioRiduzione50 = true
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    
+    expect(store.ordinarioResult.inps).toBeCloseTo(baseInps * 0.50, 2)
+    // Decreased INPS should increase IRPEF (tasse) since less INPS is deducted
+    expect(store.ordinarioResult.tasse).toBeGreaterThan(baseTasse)
+    // Net should still be higher because we saved on INPS
+    expect(store.ordinarioResult.netto).toBeGreaterThan(baseNetto)
+  })
+
+  it('should apply 50% reduction to SRL INPS correctly', async () => {
+    const store = useTaxStore()
+    store.fatturato = 50000
+    store.speseDeducibili = 5000
+    store.srlCassa = 'artigiani'
+    store.srlDistribuzione = 'compenso'
+
+    // compensoLordo = 41000
+    // Base INPS: 4208 + (41000 - 17504) * 0.24 = 4208 + 23496 * 0.24 = 9847.04
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const baseInps = store.srlResult.inps
+    expect(baseInps).toBeCloseTo(9847.04, 2)
+
+    // Apply 50% reduction
+    store.srlRiduzione50 = true
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(store.srlResult.inps).toBeCloseTo(baseInps * 0.50, 2)
+  })
+})
+
 
