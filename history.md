@@ -15,3 +15,4 @@
 - **2026-06-17**: Spostata la sezione dei grafici (ComparisonChart) in fondo alla pagina sotto le card dei regimi con layout coerente a max-w-[1600px] e spaziatura mt-12.
 - **2026-06-17**: Added Drag & Drop card sorting for tax regimes, extracted card markups into separate Vue components, and persisted the custom order in localStorage.
 - **2026-06-17**: Added PWA (Progressive Web App) support using vite-plugin-pwa, configured web app manifest and icons, caching strategy, auto-updates, and the theme-color meta tag.
+- **2026-06-17**: Added InfoTooltip component and implemented diffuse glossary tooltips for core Italian tax terms (IRPEF, IRES, IRAP, Gestione Separata, ATECO coefficient, local taxes, RAL).

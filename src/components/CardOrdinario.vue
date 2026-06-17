@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useTaxStore } from '../store/taxStore'
 import { Switch } from '@headlessui/vue'
+import InfoTooltip from './InfoTooltip.vue'
 
 const store = useTaxStore()
 
@@ -31,7 +32,10 @@ defineEmits<{
     <div class="p-6 flex-grow flex flex-col">
       <div class="mb-6 space-y-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cassa Previdenziale</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center">
+            Cassa Previdenziale
+            <InfoTooltip text="Gestione Separata: contributi calcolati in percentuale senza minimale fisso. Artigiani/Commercianti: contributi fissi minimi + quota percentuale." />
+          </label>
           <select v-model="store.ordinarioCassa" class="block w-full py-2 px-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg shadow-sm focus:ring-[#e2af0d] focus:border-[#e2af0d] sm:text-sm print:hidden">
             <option value="gestione_separata">Gestione Separata (Pro)</option>
             <option value="artigiani">Artigiani e Commercianti</option>
@@ -46,15 +50,7 @@ defineEmits<{
           <div class="flex items-center justify-between">
             <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
               Riduzione INPS 50%
-              <div class="relative group inline-block ml-1.5 cursor-pointer align-middle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 print:hidden">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded-xl shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none leading-relaxed normal-case font-normal">
-                  Applicabile ai pensionati Over 65 (già titolari di pensione INPS) o a specifici neo-iscritti alla gestione Artigiani/Commercianti.
-                  <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
-                </div>
-              </div>
+              <InfoTooltip text="Applicabile ai pensionati Over 65 (già titolari di pensione INPS) o a specifici neo-iscritti alla gestione Artigiani/Commercianti." />
             </span>
             <Switch
               v-model="store.ordinarioRiduzione50"
@@ -80,7 +76,10 @@ defineEmits<{
           <span class="font-medium text-gray-900 dark:text-white">{{ formatCurrency(store.ordinarioResult.inps) }}</span>
         </div>
         <div class="flex justify-between text-sm">
-          <span class="text-gray-500 dark:text-gray-400">Imposte (IRPEF)</span>
+          <span class="text-gray-500 dark:text-gray-400 flex items-center">
+            Imposte (IRPEF)
+            <InfoTooltip text="Imposta progressiva sul reddito delle persone fisiche calcolata sull'imponibile a scaglioni dal 23% al 43%." />
+          </span>
           <span class="font-medium text-red-500">{{ formatCurrency(store.ordinarioResult.tasse) }}</span>
         </div>
         <div class="flex justify-between items-center pt-3 border-t border-dashed border-gray-200 dark:border-gray-700">

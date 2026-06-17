@@ -17,5 +17,9 @@ Migliorare la comprensione dell'intricato gergo fiscale italiano aggiungendo pic
 4. Al passaggio del mouse (o al tap su mobile) sopra l'icona, far apparire il fumetto con una spiegazione riassuntiva di 1-2 frasi.
 
 ## Implementazione
-- Creare un componente `InfoTooltip.vue` che riceve la stringa di spiegazione come slot o prop testuale.
+- Creare un componente `InfoTooltip.vue` che riceve la stringa di spiegazione como slot o prop testuale.
 - Evitare di inserire link esterni nel testo del tooltip; mantenere spiegazioni "for dummies" e dirette.
+
+## Status: COMPLETE
+
+<!-- NR_OF_TRIES: 1 -->

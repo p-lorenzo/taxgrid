@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useTaxStore } from '../store/taxStore'
+import InfoTooltip from './InfoTooltip.vue'
 
 const store = useTaxStore()
 
@@ -37,7 +38,10 @@ defineEmits<{
         </div>
 
         <div class="flex justify-between text-sm py-1">
-          <span class="text-gray-500 dark:text-gray-400">RAL Calcolata</span>
+          <span class="text-gray-500 dark:text-gray-400 flex items-center">
+            RAL Calcolata
+            <InfoTooltip text="La Retribuzione Annua Lorda calcolata a partire dal costo aziendale totale, sottraendo i contributi previdenziali a carico dell'azienda." />
+          </span>
           <span class="font-medium text-gray-900 dark:text-white">{{ formatCurrency(store.dipendenteResult.ral) }}</span>
         </div>
       </div>
@@ -48,7 +52,10 @@ defineEmits<{
           <span class="font-medium text-gray-900 dark:text-white">{{ formatCurrency(store.dipendenteResult.inps) }}</span>
         </div>
         <div class="flex justify-between text-sm">
-          <span class="text-gray-500 dark:text-gray-400">Imposte (IRPEF + Add.)</span>
+          <span class="text-gray-500 dark:text-gray-400 flex items-center">
+            Imposte (IRPEF + Add.)
+            <InfoTooltip text="Somma dell'IRPEF nazionale a scaglioni e delle addizionali regionali e comunali dovute sul reddito da lavoro dipendente." />
+          </span>
           <span class="font-medium text-red-500">{{ formatCurrency(store.dipendenteResult.tasse) }}</span>
         </div>
         <div class="flex justify-between items-center pt-3 border-t border-dashed border-gray-200 dark:border-gray-700">

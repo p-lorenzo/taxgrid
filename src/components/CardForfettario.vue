@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useTaxStore } from '../store/taxStore'
 import { Switch } from '@headlessui/vue'
+import InfoTooltip from './InfoTooltip.vue'
 
 const store = useTaxStore()
 
@@ -57,7 +58,10 @@ defineEmits<{
         </div>
         
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cassa Previdenziale</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center">
+            Cassa Previdenziale
+            <InfoTooltip text="Gestione Separata: contributi calcolati in percentuale senza minimale fisso. Artigiani/Commercianti: contributi fissi minimi + quota percentuale." />
+          </label>
           <select v-model="store.forfettarioCassa" class="block w-full py-2 px-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg shadow-sm focus:ring-[#e2af0d] focus:border-[#e2af0d] sm:text-sm print:hidden">
             <option value="gestione_separata">Gestione Separata (Pro)</option>
             <option value="artigiani">Artigiani e Commercianti</option>
@@ -72,15 +76,7 @@ defineEmits<{
           <div class="flex items-center justify-between">
             <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
               Riduzione INPS 35%
-              <div class="relative group inline-block ml-1.5 cursor-pointer align-middle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 print:hidden">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded-xl shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none leading-relaxed normal-case font-normal">
-                  Esclusiva per Regime Forfettario (Artigiani/Commercianti). Riduce del 35% i contributi fissi e variabili. Attenzione: riduce proporzionalmente anche l'anzianità per la pensione.
-                  <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
-                </div>
-              </div>
+              <InfoTooltip text="Esclusiva per Regime Forfettario (Artigiani/Commercianti). Riduce del 35% tutti i contributi dovuti. Riduce proporzionalmente l'anzianità pensionistica." />
             </span>
             <Switch
               v-model="store.forfettarioRiduzione35"
@@ -101,15 +97,7 @@ defineEmits<{
           <div class="flex items-center justify-between">
             <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
               Riduzione INPS 50%
-              <div class="relative group inline-block ml-1.5 cursor-pointer align-middle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 print:hidden">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded-xl shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none leading-relaxed normal-case font-normal">
-                  Applicabile ai pensionati Over 65 INPS o a specifici neo-iscritti. Incompatibile con la riduzione del 35%.
-                  <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
-                </div>
-              </div>
+              <InfoTooltip text="Applicabile ai pensionati Over 65 INPS o a specifici neo-iscritti. Incompatibile con la riduzione del 35%." />
             </span>
             <Switch
               v-model="store.forfettarioRiduzione50"

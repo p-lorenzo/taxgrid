@@ -9,6 +9,7 @@ import CardForfettario from './components/CardForfettario.vue'
 import CardOrdinario from './components/CardOrdinario.vue'
 import CardSrl from './components/CardSrl.vue'
 import CardDipendente from './components/CardDipendente.vue'
+import InfoTooltip from './components/InfoTooltip.vue'
 import draggable from 'vuedraggable'
 import { computed, ref } from 'vue'
 
@@ -159,7 +160,10 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
             </div>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Categoria ATECO (Coefficiente)</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center">
+              Categoria ATECO (Coefficiente)
+              <InfoTooltip text="La percentuale (stabilita per codice ATECO) su cui si calcolano imposte e contributi nel regime Forfettario. Le spese reali non vengono detratte." />
+            </label>
             <select v-model="store.atecoCategory" class="print:hidden block w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors">
               <option v-for="cat in store.ATECO_CATEGORIES" :key="cat.id" :value="cat.id">
                 {{ cat.name }}
@@ -243,13 +247,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
               <div>
                 <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1 flex items-center">
                   Spese Detraibili (19%)
-                  <div class="relative group inline-block ml-1 cursor-pointer text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 print:hidden">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-48 p-2 bg-gray-900 text-white text-[10px] rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none font-normal leading-snug">
-                      Non si applicano al Forfettario. Riducono direttamente l'IRPEF netta del 19%.
-                      <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
-                    </div>
-                  </div>
+                  <InfoTooltip text="Non si applicano al Forfettario. Riducono direttamente l'IRPEF netta del 19% delle spese sostenute." />
                 </label>
                 <div class="relative print:hidden">
                   <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-gray-400 text-xs">€</span>
@@ -288,7 +286,10 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
 
               <div v-if="store.hasLavoroDipendente" class="space-y-3 pt-2 border-t border-gray-200/50 dark:border-gray-700/30">
                 <div>
-                  <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">RAL (Reddito Annuo Lordo)</label>
+                  <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1 flex items-center">
+                    RAL (Reddito Annuo Lordo)
+                    <InfoTooltip text="Retribuzione Annua Lorda da lavoro dipendente. Determina lo scaglione IRPEF di partenza in caso di cumulo con la partita IVA." />
+                  </label>
                   <div class="relative print:hidden">
                     <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-gray-400 text-xs">€</span>
                     <input type="number" v-model="store.ralDipendente" class="block w-full pl-7 pr-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
@@ -318,13 +319,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
               <div>
                 <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1 flex items-center">
                   Addizionale Regionale
-                  <div class="relative group inline-block ml-1 cursor-pointer text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 print:hidden">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-56 p-2 bg-gray-900 text-white text-[10px] rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none font-normal leading-snug">
-                      Medie regionali: Lombardia (1.23-1.73%), Lazio e Campania (fino a 3.33%).
-                      <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
-                    </div>
-                  </div>
+                  <InfoTooltip text="Imposta regionale aggiuntiva calcolata sull'imponibile IRPEF dei regimi ordinari e dipendenti. Medie regionali: 1.2% - 3.3%." />
                 </label>
                 <div class="relative print:hidden">
                   <input type="number" step="0.01" v-model="store.addizionaleRegionale" class="block w-full pr-7 pl-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
@@ -337,13 +332,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
               <div>
                 <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1 flex items-center">
                   Addizionale Comunale
-                  <div class="relative group inline-block ml-1 cursor-pointer text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 print:hidden">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-56 p-2 bg-gray-900 text-white text-[10px] rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none font-normal leading-snug">
-                      Medie comunali: Milano 0.8%, Roma e Napoli 0.9%.
-                      <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
-                    </div>
-                  </div>
+                  <InfoTooltip text="Imposta comunale aggiuntiva calcolata sull'imponibile IRPEF. Medie comunali: Milano 0.8%, Roma e Napoli 0.9%." />
                 </label>
                 <div class="relative print:hidden">
                   <input type="number" step="0.01" v-model="store.addizionaleComunale" class="block w-full pr-7 pl-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
@@ -365,13 +354,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
               <div>
                 <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1 flex items-center">
                   Massimale Contributivo
-                  <div class="relative group inline-block ml-1 cursor-pointer text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 print:hidden">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-60 p-2.5 bg-gray-900 text-white text-[10px] rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none font-normal leading-relaxed">
-                      Default 119.650€ (2025). Oltre questa soglia di imponibile non sono dovuti contributi.
-                      <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
-                    </div>
-                  </div>
+                  <InfoTooltip text="Soglia massima di imponibile previdenziale (119.650€ per il 2025) oltre la quale non sono dovuti contributi pensionistici." />
                 </label>
                 <div class="relative print:hidden">
                   <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-gray-400 text-xs">€</span>
