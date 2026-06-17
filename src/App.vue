@@ -1,8 +1,16 @@
 <script setup lang="ts">
 import { useTaxStore } from './store/taxStore'
 import { Switch } from '@headlessui/vue'
+import { computed } from 'vue'
 
 const store = useTaxStore()
+
+const isAdvanced = computed({
+  get: () => store.expensesMode === 'advanced',
+  set: (val: boolean) => {
+    store.expensesMode = val ? 'advanced' : 'simple'
+  }
+})
 
 const formatCurrency = (val: number) => {
   return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(val)
@@ -41,10 +49,55 @@ const formatCurrency = (val: number) => {
             </div>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Spese Annue (Ded./Detr.)</label>
-            <div class="relative">
-              <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">€</span>
-              <input type="number" v-model="store.spese" class="block w-full pl-8 pr-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
+            <div class="flex items-center justify-between mb-2">
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Spese Annue</label>
+              <div class="flex items-center space-x-2">
+                <span class="text-xs text-gray-500 dark:text-gray-400">Avanzate</span>
+                <Switch
+                  v-model="isAdvanced"
+                  :class="isAdvanced ? 'bg-[#e2af0d]' : 'bg-gray-200 dark:bg-gray-600'"
+                  class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#e2af0d] focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+                >
+                  <span class="sr-only">Toggle Advanced Mode</span>
+                  <span
+                    :class="isAdvanced ? 'translate-x-5' : 'translate-x-1'"
+                    class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform"
+                  />
+                </Switch>
+              </div>
+            </div>
+
+            <!-- Simple Mode Input -->
+            <div v-if="!isAdvanced">
+              <div class="relative">
+                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">€</span>
+                <input type="number" v-model="store.speseDeducibili" class="block w-full pl-8 pr-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
+              </div>
+              <p class="text-xs text-gray-500 mt-1">Spese operative generiche deducibili dal reddito.</p>
+            </div>
+
+            <!-- Advanced Mode Grid -->
+            <div v-else>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Deducibili</label>
+                  <div class="relative">
+                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 text-xs">€</span>
+                    <input type="number" v-model="store.speseDeducibili" class="block w-full pl-7 pr-2 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Detraibili (19%)</label>
+                  <div class="relative">
+                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 text-xs">€</span>
+                    <input type="number" v-model="store.speseDetraibili" class="block w-full pl-7 pr-2 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
+                  </div>
+                </div>
+              </div>
+              <div class="mt-2 text-xs text-blue-600 dark:text-blue-400 flex items-start gap-1">
+                <svg class="w-3.5 h-3.5 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <span>Le detraibili riducono l'IRPEF del 19%. Non si applicano al Forfettario.</span>
+              </div>
             </div>
           </div>
           <div>

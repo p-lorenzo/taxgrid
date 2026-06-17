@@ -71,7 +71,7 @@ describe('TaxStore ATECO Dropdown Logic', () => {
 
     const store = useTaxStore()
     expect(store.fatturato).toBe(60000)
-    expect(store.spese).toBe(8000)
+    expect(store.speseDeducibili).toBe(8000)
     expect(store.atecoCategory).toBe('costruzioni_immobiliari')
     expect(store.atecoCoef).toBe(0.86)
     expect(store.forfettarioCassa).toBe('artigiani')
@@ -83,7 +83,7 @@ describe('TaxStore ATECO Dropdown Logic', () => {
   it('should fallback and deduce atecoCategory if only atecoCoef is in localStorage', () => {
     localStorage.setItem('taxgrid_state', JSON.stringify({
       fatturato: 60000,
-      spese: 8000,
+      speseDeducibili: 8000,
       atecoCoef: 0.54,
       forfettarioCassa: 'artigiani',
       forfettarioStartup: true,
@@ -106,7 +106,7 @@ describe('TaxStore SRL Logic', () => {
   it('should calculate SRL values in compenso mode correctly and differ from Ordinario', async () => {
     const store = useTaxStore()
     store.fatturato = 50000
-    store.spese = 5000
+    store.speseDeducibili = 5000
     store.srlDistribuzione = 'compenso'
 
     // Verify S.R.L. Compenso values (costiFissiSrl = 4000)
@@ -136,7 +136,7 @@ describe('TaxStore SRL Logic', () => {
     
     // Scenario A: Revenue doesn't exceed corporate costs + expenses
     store.fatturato = 3000
-    store.spese = 0
+    store.speseDeducibili = 0
     store.srlDistribuzione = 'compenso'
     expect(store.srlResult.inps).toBe(0)
     expect(store.srlResult.tasse).toBe(0)
@@ -149,7 +149,7 @@ describe('TaxStore SRL Logic', () => {
 
     // Scenario B: Revenue slightly exceeds costs + expenses
     store.fatturato = 4500
-    store.spese = 0
+    store.speseDeducibili = 0
     store.srlDistribuzione = 'utili'
     // utileLordoOperativo = 500
     // tasseSrl = 500 * 0.279 = 139.5
@@ -159,6 +159,74 @@ describe('TaxStore SRL Logic', () => {
     // netto = 360.5 - 93.73 = 266.77
     expect(store.srlResult.tasse).toBeCloseTo(233.23, 2)
     expect(store.srlResult.netto).toBeCloseTo(266.77, 2)
+  })
+})
+
+describe('TaxStore Expenses Mode (Simple / Advanced)', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    setActivePinia(createPinia())
+  })
+
+  it('should calculate tax discounts when advanced mode is active', async () => {
+    const store = useTaxStore()
+    store.fatturato = 50000
+    store.expensesMode = 'advanced'
+    store.speseDeducibili = 5000
+    store.speseDetraibili = 10000
+
+    // Ordinario calculations:
+    // imponibileBase = 50000 - 5000 = 45000
+    // inps = 45000 * 0.2607 = 11731.50
+    // imponibileFiscale = 45000 - 11731.50 = 33268.50
+    // irpefLorda = 28000 * 0.23 + 5268.50 * 0.35 = 6440 + 1843.975 = 8283.975
+    // scontoDetraibili = 10000 * 0.19 = 1900
+    // irpefNetta = 8283.975 - 1900 = 6383.98 (rounded)
+    // netto = 50000 - 5000 - 11731.50 - 6383.98 = 26884.52 (rounded)
+    expect(store.ordinarioResult.inps).toBeCloseTo(11731.50, 2)
+    expect(store.ordinarioResult.tasse).toBeCloseTo(6383.975, 2)
+    expect(store.ordinarioResult.netto).toBeCloseTo(26884.525, 2)
+
+    // Forfettario calculations:
+    // unimpeded by expenses
+    // base = 50000 * 0.78 = 39000
+    // inps = 39000 * 0.2607 = 10167.3
+    // imponibileNetto = 39000 - 10167.3 = 28832.7
+    // tasse = 28832.7 * 0.05 = 1441.635
+    // netto = 50000 - 10167.3 - 1441.635 = 38391.07
+    expect(store.forfettarioResult.inps).toBeCloseTo(10167.30, 2)
+    expect(store.forfettarioResult.tasse).toBeCloseTo(1441.635, 2)
+    expect(store.forfettarioResult.netto).toBeCloseTo(38391.065, 2)
+
+    // SRL compenso mode:
+    // utileLordoOperativo = 50000 - 5000 - 4000 = 41000
+    // compensoLordo = 41000 / 1.2239 = 33499.4689
+    // inpsAzienda = 33499.4689 * 0.2239 = 7500.5311
+    // inpsAmministratore = 33499.4689 * 0.1120 = 3751.9405
+    // inpsTotale = 11252.47
+    // imponibileFiscale = 33499.4689 - 3751.9405 = 29747.5284
+    // irpefLorda = 6440 + 1747.5284 * 0.35 = 7051.6349
+    // detrazioni = 1910 * (20252.4716 / 22000) = 1758.2828
+    // scontoDetraibili = 10000 * 0.19 = 1900
+    // irpefNetta = Math.max(7051.6349 - 1758.2828 - 1900, 0) = 3393.3521
+    // netto = compensoLordo - inpsAmministratore - irpefNetta = 33499.4689 - 3751.9405 - 3393.3521 = 26354.1763
+    expect(store.srlResult.inps).toBeCloseTo(11252.47, 2)
+    expect(store.srlResult.tasse).toBeCloseTo(3393.35, 2)
+    expect(store.srlResult.netto).toBeCloseTo(26354.18, 2)
+  })
+
+  it('should ignore detraibili expenses in simple mode', async () => {
+    const store = useTaxStore()
+    store.fatturato = 50000
+    store.expensesMode = 'simple'
+    store.speseDeducibili = 5000
+    store.speseDetraibili = 10000 // should be ignored
+
+    // Ordinario calculations (should be same as if detraibili = 0):
+    // irpefNetta = 8283.98 (no 1900 discount)
+    // netto = 24984.53
+    expect(store.ordinarioResult.tasse).toBeCloseTo(8283.98, 2)
+    expect(store.ordinarioResult.netto).toBeCloseTo(24984.53, 2)
   })
 })
 

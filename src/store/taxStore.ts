@@ -22,7 +22,9 @@ export const ATECO_CATEGORIES: AtecoCategory[] = [
 export const useTaxStore = defineStore('taxStore', () => {
   // Global Variables
   const fatturato = ref(50000)
-  const spese = ref(5000)
+  const expensesMode = ref<'simple' | 'advanced'>('simple')
+  const speseDeducibili = ref(5000)
+  const speseDetraibili = ref(0)
   const atecoCategory = ref('professionisti')
   const atecoCoef = ref(0.78) // default 78% for professionisti
 
@@ -51,7 +53,9 @@ export const useTaxStore = defineStore('taxStore', () => {
       try {
         const parsed = JSON.parse(saved)
         fatturato.value = parsed.fatturato ?? fatturato.value
-        spese.value = parsed.spese ?? spese.value
+        expensesMode.value = parsed.expensesMode ?? expensesMode.value
+        speseDeducibili.value = parsed.speseDeducibili ?? parsed.spese ?? speseDeducibili.value
+        speseDetraibili.value = parsed.speseDetraibili ?? speseDetraibili.value
         atecoCoef.value = parsed.atecoCoef ?? atecoCoef.value
         
         if (parsed.atecoCategory) {
@@ -76,11 +80,13 @@ export const useTaxStore = defineStore('taxStore', () => {
   loadState()
 
   watch(
-    [fatturato, spese, atecoCategory, atecoCoef, forfettarioCassa, forfettarioStartup, ordinarioCassa, srlDistribuzione],
+    [fatturato, expensesMode, speseDeducibili, speseDetraibili, atecoCategory, atecoCoef, forfettarioCassa, forfettarioStartup, ordinarioCassa, srlDistribuzione],
     () => {
       localStorage.setItem('taxgrid_state', JSON.stringify({
         fatturato: fatturato.value,
-        spese: spese.value,
+        expensesMode: expensesMode.value,
+        speseDeducibili: speseDeducibili.value,
+        speseDetraibili: speseDetraibili.value,
         atecoCategory: atecoCategory.value,
         atecoCoef: atecoCoef.value,
         forfettarioCassa: forfettarioCassa.value,
@@ -115,7 +121,7 @@ export const useTaxStore = defineStore('taxStore', () => {
 
   // Calculations: Ordinario
   const ordinarioResult = computed(() => {
-    const imponibileBase = Math.max(fatturato.value - spese.value, 0)
+    const imponibileBase = Math.max(fatturato.value - speseDeducibili.value, 0)
     const inpsRate = ordinarioCassa.value === 'gestione_separata' ? 0.2607 : 0.24
     let inps = imponibileBase * inpsRate
     if (ordinarioCassa.value === 'artigiani' && inps < 4208) {
@@ -124,20 +130,23 @@ export const useTaxStore = defineStore('taxStore', () => {
 
     const imponibileFiscale = Math.max(imponibileBase - inps, 0)
     // Simplified IRPEF Scaglioni 2024
-    let tasse = 0
+    let irpefLorda = 0
     if (imponibileFiscale <= 28000) {
-      tasse = imponibileFiscale * 0.23
+      irpefLorda = imponibileFiscale * 0.23
     } else if (imponibileFiscale <= 50000) {
-      tasse = 28000 * 0.23 + (imponibileFiscale - 28000) * 0.35
+      irpefLorda = 28000 * 0.23 + (imponibileFiscale - 28000) * 0.35
     } else {
-      tasse = 28000 * 0.23 + 22000 * 0.35 + (imponibileFiscale - 50000) * 0.43
+      irpefLorda = 28000 * 0.23 + 22000 * 0.35 + (imponibileFiscale - 50000) * 0.43
     }
 
-    const netto = fatturato.value - spese.value - inps - tasse
-    return { inps, tasse, netto }
+    const scontoDetraibili = expensesMode.value === 'advanced' ? speseDetraibili.value * 0.19 : 0
+    const irpefNetta = Math.max(irpefLorda - scontoDetraibili, 0)
+
+    const netto = fatturato.value - speseDeducibili.value - inps - irpefNetta
+    return { inps, tasse: irpefNetta, netto }
   })
 
-// Helper: Calcolo IRPEF Lorda (Scaglioni 2024)
+  // Helper: Calcolo IRPEF Lorda (Scaglioni 2024)
   function calcolaIrpefLorda(imponibile: number) {
     if (imponibile <= 28000) return imponibile * 0.23;
     if (imponibile <= 50000) return (28000 * 0.23) + ((imponibile - 28000) * 0.35);
@@ -155,7 +164,7 @@ export const useTaxStore = defineStore('taxStore', () => {
   // Calculations: SRL
   const srlResult = computed(() => {
     const costiFissiSrl = 4000;
-    const utileLordoOperativo = Math.max(fatturato.value - spese.value - costiFissiSrl, 0);
+    const utileLordoOperativo = Math.max(fatturato.value - speseDeducibili.value - costiFissiSrl, 0);
 
     let tasseSrl = 0;
     let inpsTotaleSostenutoDaUtente = 0; // Costo visivo: ciò che esce dalle sue tasche o dalla sua azienda
@@ -172,7 +181,8 @@ export const useTaxStore = defineStore('taxStore', () => {
       const imponibileFiscale = Math.max(compensoLordo - inpsAmministratore, 0);
       const irpefLorda = calcolaIrpefLorda(imponibileFiscale);
       const detrazioni = calcolaDetrazioniDipendente(imponibileFiscale);
-      const irpefNetta = Math.max(irpefLorda - detrazioni, 0);
+      const scontoDetraibili = expensesMode.value === 'advanced' ? speseDetraibili.value * 0.19 : 0
+      const irpefNetta = Math.max(irpefLorda - detrazioni - scontoDetraibili, 0);
       
       // Per un confronto equo nella dashboard, mostriamo l'INPS totale o solo quello trattenuto.
       // L'utente percepisce il carico fiscale, quindi INPS = inpsAzienda + inpsAmministratore
@@ -200,7 +210,7 @@ export const useTaxStore = defineStore('taxStore', () => {
 
 
   return {
-    fatturato, spese, atecoCategory, atecoCoef, ATECO_CATEGORIES,
+    fatturato, expensesMode, speseDeducibili, speseDetraibili, atecoCategory, atecoCoef, ATECO_CATEGORIES,
     forfettarioCassa, forfettarioStartup,
     ordinarioCassa, srlDistribuzione,
     forfettarioResult, ordinarioResult, srlResult

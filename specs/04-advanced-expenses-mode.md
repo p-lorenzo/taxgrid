@@ -4,7 +4,9 @@
 
 **Created**: 2026-06-17
 
-**Status**: Incomplete
+**Status**: COMPLETE
+
+## Status: COMPLETE
 
 **Input**: User description: "Introdurre un toggle UI per gestire spese deducibili e detraibili (Simple / Advanced mode). Semplice: un campo deducibile. Avanzata: due campi (deducibili, detraibili al 19%). Il forfettario non scala nessuna delle due spese."
 
@@ -93,4 +95,4 @@ const ordinarioResult = computed(() => {
 
 ---
 
-<!-- NR_OF_TRIES: 0 -->
+<!-- NR_OF_TRIES: 1 -->
