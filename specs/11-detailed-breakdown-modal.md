@@ -1,5 +1,7 @@
 # Spec 11: Spaccato Dettagliato dei Calcoli (Math Breakdown)
 
+## Status: COMPLETE
+
 ## Obiettivo
 Rendere trasparenti i calcoli matematici alla base del netto in tasca mostrato nelle card, incrementando la fiducia dell'utente nei risultati e offrendo un valore consulenziale.
 
@@ -20,3 +22,5 @@ Rendere trasparenti i calcoli matematici alla base del netto in tasca mostrato n
 ## Implementazione
 - Aggiornare `taxStore` affinché ogni Computed prop (`forfettarioResult`, ecc.) ritorni, oltre ai totali macro, anche un oggetto `breakdown` con i risultati intermedi e i passaggi logici.
 - Creare un componente `CalculationBreakdown.vue` per disaccoppiare la logica UI della modale/accordion.
+
+<!-- NR_OF_TRIES: 1 -->

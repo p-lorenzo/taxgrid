@@ -16,6 +16,13 @@ const localStorageMock = (() => {
 })()
 Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, writable: true })
 
+// Mock ResizeObserver for Headless UI Dialog
+globalThis.ResizeObserver = class ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
 describe('App Component', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -44,5 +51,19 @@ describe('App Component', () => {
     await printBtn.trigger('click')
     expect(printSpy).toHaveBeenCalled()
     printSpy.mockRestore()
+  })
+
+  it('opens calculation breakdown modal when card button is clicked', async () => {
+    const wrapper = mount(App)
+    
+    const buttons = wrapper.findAll('button')
+    const breakdownBtn = buttons.find(b => b.text().includes('Vedi dettaglio calcolo'))
+    expect(breakdownBtn).toBeDefined()
+
+    await breakdownBtn!.trigger('click')
+    
+    expect((wrapper.vm as any).isBreakdownOpen).toBe(true)
+    expect((wrapper.vm as any).breakdownTitle).toBe('Regime Forfettario')
+    expect((wrapper.vm as any).breakdownSteps.length).toBeGreaterThan(0)
   })
 })

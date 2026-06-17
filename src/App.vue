@@ -3,7 +3,8 @@ import { useTaxStore } from './store/taxStore'
 import { Switch } from '@headlessui/vue'
 import Footer from './components/Footer.vue'
 import ComparisonChart from './components/ComparisonChart.vue'
-import { computed } from 'vue'
+import CalculationBreakdown from './components/CalculationBreakdown.vue'
+import { computed, ref } from 'vue'
 
 const store = useTaxStore()
 
@@ -25,6 +26,33 @@ const gridColsClass = computed(() => {
 
 const printPage = () => {
   window.print()
+}
+
+// Modal State
+const isBreakdownOpen = ref(false)
+const breakdownTitle = ref('')
+const breakdownSteps = ref<any[]>([])
+const breakdownFinalNetto = ref(0)
+
+const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente') => {
+  if (regime === 'forfettario') {
+    breakdownTitle.value = 'Regime Forfettario'
+    breakdownSteps.value = store.forfettarioResult.breakdown.steps
+    breakdownFinalNetto.value = store.forfettarioResult.netto
+  } else if (regime === 'ordinario') {
+    breakdownTitle.value = 'Regime Ordinario'
+    breakdownSteps.value = store.ordinarioResult.breakdown.steps
+    breakdownFinalNetto.value = store.ordinarioResult.netto
+  } else if (regime === 'srl') {
+    breakdownTitle.value = 'Società S.R.L.'
+    breakdownSteps.value = store.srlResult.breakdown.steps
+    breakdownFinalNetto.value = store.srlResult.netto
+  } else if (regime === 'dipendente') {
+    breakdownTitle.value = 'Lavoro Dipendente'
+    breakdownSteps.value = store.dipendenteResult.breakdown.steps
+    breakdownFinalNetto.value = store.dipendenteResult.netto
+  }
+  isBreakdownOpen.value = true
 }
 </script>
 
@@ -490,6 +518,15 @@ const printPage = () => {
                 <span>Paragone Mensile (su {{ store.mesiParagone }} mensilità)</span>
                 <span class="font-semibold text-gray-900 dark:text-white">{{ formatCurrency(store.forfettarioResult.nettoMensile) }}</span>
               </div>
+              <button 
+                @click="openBreakdown('forfettario')"
+                class="w-full mt-3 py-2 px-4 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/20 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 text-xs font-semibold rounded-xl transition-all duration-200 border border-blue-150/40 dark:border-blue-900/30 cursor-pointer flex items-center justify-center gap-1.5 print:hidden"
+              >
+                <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                </svg>
+                Vedi dettaglio calcolo
+              </button>
             </div>
           </div>
         </div>
@@ -561,6 +598,15 @@ const printPage = () => {
                 <span>Paragone Mensile (su {{ store.mesiParagone }} mensilità)</span>
                 <span class="font-semibold text-gray-900 dark:text-white">{{ formatCurrency(store.ordinarioResult.nettoMensile) }}</span>
               </div>
+              <button 
+                @click="openBreakdown('ordinario')"
+                class="w-full mt-3 py-2 px-4 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/20 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 text-xs font-semibold rounded-xl transition-all duration-200 border border-blue-150/40 dark:border-blue-900/30 cursor-pointer flex items-center justify-center gap-1.5 print:hidden"
+              >
+                <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                </svg>
+                Vedi dettaglio calcolo
+              </button>
             </div>
           </div>
         </div>
@@ -643,6 +689,15 @@ const printPage = () => {
                 <span>Paragone Mensile (su {{ store.mesiParagone }} mensilità)</span>
                 <span class="font-semibold text-gray-900 dark:text-white">{{ formatCurrency(store.srlResult.nettoMensile) }}</span>
               </div>
+              <button 
+                @click="openBreakdown('srl')"
+                class="w-full mt-3 py-2 px-4 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/20 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 text-xs font-semibold rounded-xl transition-all duration-200 border border-blue-150/40 dark:border-blue-900/30 cursor-pointer flex items-center justify-center gap-1.5 print:hidden"
+              >
+                <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                </svg>
+                Vedi dettaglio calcolo
+              </button>
             </div>
           </div>
         </div>
@@ -685,6 +740,15 @@ const printPage = () => {
                 <span>Paragone Mensile (su {{ store.mesiParagone }} mensilità)</span>
                 <span class="font-semibold text-gray-900 dark:text-white">{{ formatCurrency(store.dipendenteResult.nettoMensile) }}</span>
               </div>
+              <button 
+                @click="openBreakdown('dipendente')"
+                class="w-full mt-3 py-2 px-4 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/20 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 text-xs font-semibold rounded-xl transition-all duration-200 border border-blue-150/40 dark:border-blue-900/30 cursor-pointer flex items-center justify-center gap-1.5 print:hidden"
+              >
+                <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                </svg>
+                Vedi dettaglio calcolo
+              </button>
             </div>
           </div>
         </div>
@@ -693,5 +757,15 @@ const printPage = () => {
     </div>
 
     <Footer />
+
+    <!-- Calculation Breakdown Dialog -->
+    <CalculationBreakdown
+      :is-open="isBreakdownOpen"
+      :title="breakdownTitle"
+      :steps="breakdownSteps"
+      :final-netto="breakdownFinalNetto"
+      :mesi-paragone="store.mesiParagone"
+      @close="isBreakdownOpen = false"
+    />
   </div>
 </template>

@@ -10,3 +10,5 @@
 - **2026-06-17**: Added static footer with credits (Lorenzo Pesce), GitHub and LinkedIn links, Open Source repository and issues links, and a legal disclaimer for 2025.
 - **2026-06-17**: Added custom, responsive interactive ComparisonChart (stacked bar chart) showing taxes, INPS, expenses, and net pocket composition with animations and dark mode support.
 - **2026-06-17**: Implemented print-friendly layout and PDF report generation button for global controls, parameters, and comparison cards.
+- **2026-06-17**: Added detailed mathematical breakdown step-by-step modal (CalculationBreakdown) for each tax regime (Forfettario, Ordinario, SRL, Dipendente) showing starting fatturato, expenses, cassa INPS details, IRPEF brackets, corporate taxes, and regional/communal addizionali.
+
