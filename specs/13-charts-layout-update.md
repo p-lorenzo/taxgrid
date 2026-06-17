@@ -1,5 +1,7 @@
 # Spec 13: Spostamento Grafici (Layout Update)
 
+## Status: COMPLETE
+
 ## Obiettivo
 Migliorare l'esperienza visiva spostando la sezione dei grafici (ComparisonChart) in fondo all'app, subito dopo le card dei regimi, anziché prima.
 
@@ -12,3 +14,5 @@ Migliorare l'esperienza visiva spostando la sezione dei grafici (ComparisonChart
 ## Implementazione
 - Il contenitore del grafico dovrebbe avere una larghezza in sintonia con il resto della pagina (es. `max-w-[1600px] mx-auto` se non è già così).
 - Nessuna modifica alla logica di calcolo, solo un refactoring del template.
+
+<!-- NR_OF_TRIES: 1 -->

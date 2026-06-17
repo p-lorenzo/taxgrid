@@ -395,8 +395,6 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
         </div>
       </div>
 
-      <!-- Grafico di Confronto -->
-      <ComparisonChart />
     </div> <!-- Fine contenitore max-w-7xl -->
 
     <!-- Contenitore più largo per le card -->
@@ -758,6 +756,11 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
         </div>
 
       </div>
+    </div>
+
+    <!-- Grafico di Confronto (spostato in fondo, sotto le card) -->
+    <div class="max-w-[1600px] w-full mx-auto mt-12">
+      <ComparisonChart />
     </div>
 
     <Footer />
