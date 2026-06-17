@@ -2,6 +2,7 @@
 import { useTaxStore } from './store/taxStore'
 import { Switch } from '@headlessui/vue'
 import Footer from './components/Footer.vue'
+import ComparisonChart from './components/ComparisonChart.vue'
 import { computed } from 'vue'
 
 const store = useTaxStore()
@@ -304,6 +305,9 @@ const gridColsClass = computed(() => {
           </div>
         </div>
       </div>
+
+      <!-- Grafico di Confronto -->
+      <ComparisonChart />
     </div> <!-- Fine contenitore max-w-7xl -->
 
     <!-- Contenitore più largo per le card -->

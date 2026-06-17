@@ -1,5 +1,13 @@
 # Spec 09: Grafici Visivi (Data Visualization)
 
+**Feature Branch**: `09-visual-charts`
+
+**Created**: 2026-06-17
+
+**Status**: COMPLETE
+
+## Status: COMPLETE
+
 ## Obiettivo
 Aggiungere una rappresentazione visiva dei dati calcolati per fornire un confronto immediato tra i vari regimi (Forfettario, Ordinario, SRL, Dipendente).
 
@@ -15,5 +23,19 @@ Aggiungere una rappresentazione visiva dei dati calcolati per fornire un confron
 6. Assicurarsi che i colori del grafico supportino sia il light mode che il dark mode (es. colore del testo dell'asse X).
 
 ## Implementazione
-- Passare le props necessarie dal `taxStore` al componente `ComparisonChart.vue`.
-- Ottimizzare il rendering per non appesantire le prestazioni dell'app in modo eccessivo al variare veloce degli input numerici.
+- Costruito un grafico a barre impilate nativo in HTML/CSS. Ciò garantisce prestazioni elevate, assenza di librerie esterne che appesantiscano il bundle, perfetta integrazione responsive e adattamento per light/dark mode.
+- I segmenti del grafico si adattano dinamicamente all'imponibile e mostrano dettagli su hover tramite eleganti tooltip.
+- Aggiunte transizioni fluide e animazioni di entrata/uscita per i regimi attivati/disattivati tramite `<TransitionGroup>`.
+
+## User Scenarios & Testing *(mandatory)*
+
+### User Story 1 - Riapertura e Reattività Visiva
+**Independent Test**: Modificando il fatturato o modificando la visibilità di un regime dai controlli globali, il grafico si aggiorna allineando la proporzione dei segmenti di tasse, INPS, e netto o nascondendo/mostrando le righe del grafico.
+
+**Acceptance Scenarios**:
+1. **Given** l'app caricata con le impostazioni di default, **When** visualizzo il pannello del grafico, **Then** vedo 4 barre per i regimi Forfettario, Ordinario, SRL e Dipendente.
+2. **Given** il toggle per disattivare un regime (es. SRL), **When** lo spengo, **Then** la barra del regime SRL scompare con una transizione fluida.
+3. **Given** la modifica del fatturato (es. da 50k a 80k), **Then** la larghezza proporzionale del netto in tasca, INPS e tasse delle singole barre si aggiorna con un'animazione fluida.
+4. **Given** tutti i regimi spenti, **Then** viene mostrato un messaggio descrittivo che invita a selezionare almeno un regime nei controlli.
+
+<!-- NR_OF_TRIES: 1 -->
