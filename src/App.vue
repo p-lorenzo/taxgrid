@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useTaxStore } from './store/taxStore'
 import { Switch } from '@headlessui/vue'
+import Footer from './components/Footer.vue'
 
 const store = useTaxStore()
 
@@ -508,7 +509,8 @@ const formatCurrency = (val: number) => {
         </div>
 
       </div>
-
     </div>
+
+    <Footer />
   </div>
 </template>

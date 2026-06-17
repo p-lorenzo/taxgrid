@@ -4,9 +4,9 @@
 
 **Created**: 2026-06-17
 
-**Status**: PENDING
+**Status**: COMPLETE
 
-## Status: PENDING
+## Status: COMPLETE
 
 **Input**: User request: "Aggiungere un footer statico alla pagina con: credits (Lorenzo Pesce), link GitHub, link LinkedIn, menzione progetto Open Source con link al repository TaxGrid. Suggerire eventuali altre aggiunte."
 
@@ -58,3 +58,5 @@ Esempio di classi per il contenitore:
 1. **Given** l'app in esecuzione, **When** scorro fino in fondo alla pagina, **Then** visualizzo il footer in modo chiaro e responsivo sia su Desktop che su Mobile.
 2. **Given** i link ai profili social e alla repository, **When** ci clicco sopra, **Then** si aprono correttamente in una nuova scheda (`target="_blank"` e `rel="noopener noreferrer"` per motivi di sicurezza).
 3. **Given** il footer, **Then** il disclaimer legale è chiaramente visibile ma non invasivo rispetto al design principale.
+
+<!-- NR_OF_TRIES: 1 -->
