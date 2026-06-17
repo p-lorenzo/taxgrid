@@ -2,12 +2,25 @@
 import { useTaxStore } from './store/taxStore'
 import { Switch } from '@headlessui/vue'
 import Footer from './components/Footer.vue'
+import { computed } from 'vue'
 
 const store = useTaxStore()
 
 const formatCurrency = (val: number) => {
   return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(val)
 }
+
+const activeRegimesCount = computed(() => {
+  return [store.showForfettario, store.showOrdinario, store.showSrl, store.showDipendente].filter(Boolean).length
+})
+
+const gridColsClass = computed(() => {
+  const count = activeRegimesCount.value
+  if (count === 1) return 'grid-cols-1 max-w-2xl mx-auto'
+  if (count === 2) return 'grid-cols-1 md:grid-cols-2 max-w-5xl mx-auto'
+  if (count === 3) return 'grid-cols-1 lg:grid-cols-3 max-w-7xl mx-auto'
+  return 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4'
+})
 </script>
 
 <template>
@@ -117,8 +130,9 @@ const formatCurrency = (val: number) => {
         </div>
 
         <!-- Advanced Parameters Panel (conditional) -->
-        <div v-if="store.advancedMode" class="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <!-- Section 1: Spese Suddivise -->
+        <div v-if="store.advancedMode">
+          <div class="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <!-- Section 1: Spese Suddivise -->
           <div class="bg-gray-50 dark:bg-gray-800/40 p-4 rounded-xl border border-gray-100 dark:border-gray-700/50">
             <h4 class="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3 flex items-center">
               <span class="mr-1.5 text-blue-500">●</span> Spese Suddivise
@@ -253,15 +267,52 @@ const formatCurrency = (val: number) => {
                 </div>
               </div>
             </div>
+            </div>
+          </div>
+          
+          <!-- Section 5: Visibilità Regimi -->
+          <div class="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4 flex items-center">
+              <span class="mr-1.5 text-purple-500">●</span> Visibilità Regimi
+            </h4>
+            <div class="flex flex-wrap gap-x-8 gap-y-4">
+              <div class="flex items-center space-x-3">
+                <Switch v-model="store.showForfettario" :class="store.showForfettario ? 'bg-[#e2af0d]' : 'bg-gray-200 dark:bg-gray-600'" class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#e2af0d]">
+                  <span :class="store.showForfettario ? 'translate-x-5' : 'translate-x-1'" class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform"/>
+                </Switch>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Forfettario</span>
+              </div>
+              <div class="flex items-center space-x-3">
+                <Switch v-model="store.showOrdinario" :class="store.showOrdinario ? 'bg-[#e2af0d]' : 'bg-gray-200 dark:bg-gray-600'" class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#e2af0d]">
+                  <span :class="store.showOrdinario ? 'translate-x-5' : 'translate-x-1'" class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform"/>
+                </Switch>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Ordinario</span>
+              </div>
+              <div class="flex items-center space-x-3">
+                <Switch v-model="store.showSrl" :class="store.showSrl ? 'bg-[#e2af0d]' : 'bg-gray-200 dark:bg-gray-600'" class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#e2af0d]">
+                  <span :class="store.showSrl ? 'translate-x-5' : 'translate-x-1'" class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform"/>
+                </Switch>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">S.R.L.</span>
+              </div>
+              <div class="flex items-center space-x-3">
+                <Switch v-model="store.showDipendente" :class="store.showDipendente ? 'bg-[#e2af0d]' : 'bg-gray-200 dark:bg-gray-600'" class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#e2af0d]">
+                  <span :class="store.showDipendente ? 'translate-x-5' : 'translate-x-1'" class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform"/>
+                </Switch>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Dipendente</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+    </div> <!-- Fine contenitore max-w-7xl -->
 
+    <!-- Contenitore più largo per le card -->
+    <div class="max-w-[1600px] w-full mx-auto mt-6">
       <!-- Regimes Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+      <div :class="['grid gap-6', gridColsClass]">
         
         <!-- Forfettario Card -->
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col transition-transform hover:-translate-y-1 hover:shadow-lg duration-300">
+        <div v-if="store.showForfettario" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col transition-transform hover:-translate-y-1 hover:shadow-lg duration-300">
           <div class="bg-blue-50 dark:bg-blue-950/30 px-6 py-4 border-b border-blue-100 dark:border-blue-900/30">
             <h3 class="text-xl font-bold text-blue-800 dark:text-blue-300">Regime Forfettario</h3>
           </div>
@@ -371,7 +422,7 @@ const formatCurrency = (val: number) => {
         </div>
 
         <!-- Ordinario Card -->
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col transition-transform hover:-translate-y-1 hover:shadow-lg duration-300">
+        <div v-if="store.showOrdinario" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col transition-transform hover:-translate-y-1 hover:shadow-lg duration-300">
           <div class="bg-blue-50 dark:bg-blue-950/30 px-6 py-4 border-b border-blue-100 dark:border-blue-900/30">
             <h3 class="text-xl font-bold text-blue-800 dark:text-blue-300">Regime Ordinario</h3>
           </div>
@@ -436,7 +487,7 @@ const formatCurrency = (val: number) => {
         </div>
 
         <!-- SRL Card -->
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col transition-transform hover:-translate-y-1 hover:shadow-lg duration-300">
+        <div v-if="store.showSrl" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col transition-transform hover:-translate-y-1 hover:shadow-lg duration-300">
           <div class="bg-blue-50 dark:bg-blue-950/30 px-6 py-4 border-b border-blue-100 dark:border-blue-900/30">
             <h3 class="text-xl font-bold text-blue-800 dark:text-blue-300">S.R.L.</h3>
           </div>
@@ -509,7 +560,7 @@ const formatCurrency = (val: number) => {
         </div>
 
         <!-- Dipendente Card -->
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col transition-transform hover:-translate-y-1 hover:shadow-lg duration-300">
+        <div v-if="store.showDipendente" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col transition-transform hover:-translate-y-1 hover:shadow-lg duration-300">
           <div class="bg-blue-50 dark:bg-blue-950/30 px-6 py-4 border-b border-blue-100 dark:border-blue-900/30">
             <h3 class="text-xl font-bold text-blue-800 dark:text-blue-300">Dipendente</h3>
           </div>

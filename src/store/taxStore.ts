@@ -41,6 +41,12 @@ export const useTaxStore = defineStore('taxStore', () => {
   // Massimale INPS
   const massimaleInps = ref(119650)      // Default 2025
 
+  // Visibilità Regimi
+  const showForfettario = ref(true)
+  const showOrdinario = ref(true)
+  const showSrl = ref(true)
+  const showDipendente = ref(true)
+
   // Sostituisce expensesMode mantenendo retrocompatibilità
   const expensesMode = computed({
     get: () => advancedMode.value ? 'advanced' : 'simple',
@@ -119,6 +125,11 @@ export const useTaxStore = defineStore('taxStore', () => {
         addizionaleRegionale.value = parsed.addizionaleRegionale ?? addizionaleRegionale.value
         addizionaleComunale.value = parsed.addizionaleComunale ?? addizionaleComunale.value
         massimaleInps.value = parsed.massimaleInps ?? massimaleInps.value
+
+        showForfettario.value = parsed.showForfettario ?? showForfettario.value
+        showOrdinario.value = parsed.showOrdinario ?? showOrdinario.value
+        showSrl.value = parsed.showSrl ?? showSrl.value
+        showDipendente.value = parsed.showDipendente ?? showDipendente.value
       } catch (e) {
         console.error('Failed to load state', e)
       }
@@ -134,7 +145,8 @@ export const useTaxStore = defineStore('taxStore', () => {
       ordinarioCassa, ordinarioRiduzione50,
       srlDistribuzione, srlCassa, srlRiduzione50,
       mesiParagone, hasLavoroDipendente, ralDipendente, dipendenteFullTime,
-      addizionaleRegionale, addizionaleComunale, massimaleInps
+      addizionaleRegionale, addizionaleComunale, massimaleInps,
+      showForfettario, showOrdinario, showSrl, showDipendente
     ],
     () => {
       localStorage.setItem('taxgrid_state', JSON.stringify({
@@ -159,7 +171,11 @@ export const useTaxStore = defineStore('taxStore', () => {
         dipendenteFullTime: dipendenteFullTime.value,
         addizionaleRegionale: addizionaleRegionale.value,
         addizionaleComunale: addizionaleComunale.value,
-        massimaleInps: massimaleInps.value
+        massimaleInps: massimaleInps.value,
+        showForfettario: showForfettario.value,
+        showOrdinario: showOrdinario.value,
+        showSrl: showSrl.value,
+        showDipendente: showDipendente.value
       }))
     },
     { deep: true }
@@ -483,6 +499,7 @@ export const useTaxStore = defineStore('taxStore', () => {
     forfettarioResult, ordinarioResult, srlResult, dipendenteResult,
     mesiParagone,
     hasLavoroDipendente, ralDipendente, dipendenteFullTime,
-    addizionaleRegionale, addizionaleComunale, massimaleInps
+    addizionaleRegionale, addizionaleComunale, massimaleInps,
+    showForfettario, showOrdinario, showSrl, showDipendente
   }
 })
