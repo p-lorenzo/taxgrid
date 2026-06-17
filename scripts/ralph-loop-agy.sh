@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Ralph Loop for Google Gemini CLI
+# Ralph Loop for Antigravity CLI (agy)
 #
 # Based on Geoffrey Huntley's Ralph Wiggum methodology:
 # https://github.com/ghuntley/how-to-ralph-wiggum
@@ -19,13 +19,14 @@
 # 2. specs/ folder - pick highest priority incomplete spec
 #
 # Usage:
-#   ./scripts/ralph-loop-gemini.sh              # Build mode (unlimited)
-#   ./scripts/ralph-loop-gemini.sh 20           # Build mode (max 20 iterations)
-#   ./scripts/ralph-loop-gemini.sh plan         # Planning mode (creates IMPLEMENTATION_PLAN.md)
+#   ./scripts/ralph-loop-agy.sh                      # Build mode (unlimited)
+#   ./scripts/ralph-loop-agy.sh 20                   # Build mode (max 20 iterations)
+#   ./scripts/ralph-loop-agy.sh plan                 # Planning mode (creates IMPLEMENTATION_PLAN.md)
+#   ./scripts/ralph-loop-agy.sh --model "model-name" # Override model
 #
 # Requirements:
-#   - Gemini CLI installed: npm install -g @google/gemini-cli
-#   - Authenticated via: gemini (interactive login on first run)
+#   - Antigravity CLI (agy) installed
+#   - See: https://github.com/google-deepmind/antigravity
 #
 
 set -e
@@ -39,8 +40,8 @@ CONSTITUTION="$PROJECT_DIR/.specify/memory/constitution.md"
 # Configuration
 MAX_ITERATIONS=0  # 0 = unlimited
 MODE="build"
-GEMINI_CMD="${GEMINI_CMD:-agy}"
-GEMINI_MODEL="${GEMINI_MODEL:-gemini-3.1-pro-preview}"
+AGY_CMD="${AGY_CMD:-agy}"
+AGY_MODEL="${AGY_MODEL:-}"  # Empty = auto (let agy choose the best available model)
 YOLO_FLAG="--dangerously-skip-permissions"
 TAIL_LINES=5
 TAIL_RENDERED_LINES=0
@@ -70,15 +71,16 @@ fi
 
 show_help() {
     cat <<EOF
-Ralph Loop for Google Gemini CLI
+Ralph Loop for Antigravity CLI (agy)
 
 Based on Geoffrey Huntley's Ralph Wiggum methodology + SpecKit specs.
 https://github.com/ghuntley/how-to-ralph-wiggum
 
 Usage:
-  ./scripts/ralph-loop-gemini.sh              # Build mode, unlimited iterations
-  ./scripts/ralph-loop-gemini.sh 20           # Build mode, max 20 iterations
-  ./scripts/ralph-loop-gemini.sh plan         # Planning mode (optional)
+  ./scripts/ralph-loop-agy.sh                      # Build mode, unlimited iterations
+  ./scripts/ralph-loop-agy.sh 20                   # Build mode, max 20 iterations
+  ./scripts/ralph-loop-agy.sh plan                 # Planning mode (optional)
+  ./scripts/ralph-loop-agy.sh --model "model-name" # Override model
 
 Modes:
   build (default)  Pick spec/task and implement
@@ -90,14 +92,15 @@ Work Sources (checked in order):
 
 The plan mode is OPTIONAL. Most projects can work directly from specs.
 
-Model (default: gemini-3.1-pro-preview):
-  Override with: GEMINI_MODEL=gemini-2.5-pro ./scripts/ralph-loop-gemini.sh
+Model (default: auto — agy picks the best available model):
+  Override with: AGY_MODEL=gemini-2.5-pro ./scripts/ralph-loop-agy.sh
+  Or:            ./scripts/ralph-loop-agy.sh --model gemini-2.5-pro
 
 How it works:
-  1. Each iteration feeds PROMPT.md to Gemini CLI via stdin
-  2. Gemini picks the HIGHEST PRIORITY incomplete spec/task
-  3. Gemini implements, tests, and verifies acceptance criteria
-  4. Gemini outputs <promise>DONE</promise> ONLY if criteria are met
+  1. Each iteration feeds PROMPT.md to Antigravity CLI via -p flag
+  2. agy picks the HIGHEST PRIORITY incomplete spec/task
+  3. agy implements, tests, and verifies acceptance criteria
+  4. agy outputs <promise>DONE</promise> ONLY if criteria are met
   5. Bash loop checks for the magic phrase
   6. If found, loop continues to next iteration (fresh context)
   7. If not found, loop retries
@@ -107,7 +110,7 @@ EOF
 
 print_latest_output() {
     local log_file="$1"
-    local label="${2:-Gemini}"
+    local label="${2:-Antigravity}"
     local target="/dev/tty"
 
     [ -f "$log_file" ] || return 0
@@ -132,7 +135,7 @@ print_latest_output() {
 
 watch_latest_output() {
     local log_file="$1"
-    local label="${2:-Gemini}"
+    local label="${2:-Antigravity}"
     local target="/dev/tty"
     local use_tty=false
     local use_tput=false
@@ -198,6 +201,16 @@ while [[ $# -gt 0 ]]; do
                 shift
             fi
             ;;
+        --model)
+            if [[ -n "${2:-}" ]]; then
+                AGY_MODEL="$2"
+                shift 2
+            else
+                echo -e "${RED}Error: --model requires a value${NC}"
+                echo "Available models: run 'agy models' to see the list"
+                exit 1
+            fi
+            ;;
         -h|--help)
             show_help
             exit 0
@@ -218,18 +231,17 @@ done
 cd "$PROJECT_DIR"
 
 # Session log (captures ALL output)
-SESSION_LOG="$LOG_DIR/ralph_gemini_${MODE}_session_$(date '+%Y%m%d_%H%M%S').log"
+SESSION_LOG="$LOG_DIR/ralph_agy_${MODE}_session_$(date '+%Y%m%d_%H%M%S').log"
 exec > >(tee -a "$SESSION_LOG") 2>&1
 
-# Check if Gemini CLI is available
-if ! command -v "$GEMINI_CMD" &> /dev/null; then
-    echo -e "${RED}Error: Gemini CLI not found${NC}"
+# Check if Antigravity CLI is available
+if ! command -v "$AGY_CMD" &> /dev/null; then
+    echo -e "${RED}Error: Antigravity CLI (agy) not found${NC}"
     echo ""
-    echo "Install Gemini CLI:"
-    echo "  npm install -g @google/gemini-cli"
+    echo "Install Antigravity CLI:"
+    echo "  See: https://github.com/google-deepmind/antigravity"
     echo ""
-    echo "Then authenticate by running once interactively:"
-    echo "  gemini"
+    echo "Then run 'agy' once interactively to authenticate."
     exit 1
 fi
 
@@ -273,13 +285,12 @@ if [ ! -f "$PROMPT_FILE" ]; then
     exit 1
 fi
 
-# Build Gemini flags
-# Gemini reads prompt from stdin; -p "" enables non-interactive mode
-# The prompt content is piped in via stdin
-GEMINI_FLAGS="-p \"\""
-GEMINI_MODEL_FLAG="--model $GEMINI_MODEL"
-if [ "$YOLO_ENABLED" = true ]; then
-    GEMINI_FLAGS="$GEMINI_FLAGS $YOLO_FLAG"
+# Build Antigravity flags
+# agy accepts -p "prompt" for non-interactive mode
+# --model sets the model (omitted when AGY_MODEL is empty for auto-selection)
+AGY_MODEL_FLAG=""
+if [ -n "$AGY_MODEL" ]; then
+    AGY_MODEL_FLAG="--model $AGY_MODEL"
 fi
 
 # Get current branch
@@ -303,11 +314,11 @@ fi
 
 echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}              RALPH LOOP (Gemini CLI) STARTING               ${NC}"
+echo -e "${GREEN}           RALPH LOOP (Antigravity CLI) STARTING              ${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo -e "${BLUE}Mode:${NC}     $MODE"
-echo -e "${BLUE}Model:${NC}    $GEMINI_MODEL"
+echo -e "${BLUE}Model:${NC}    ${AGY_MODEL:-auto}"
 echo -e "${BLUE}Prompt:${NC}   $PROMPT_FILE"
 echo -e "${BLUE}Branch:${NC}   $CURRENT_BRANCH"
 echo -e "${YELLOW}YOLO:${NC}     $([ "$YOLO_ENABLED" = true ] && echo "ENABLED" || echo "DISABLED")"
@@ -363,31 +374,31 @@ while true; do
     echo ""
 
     # Log file for this iteration
-    LOG_FILE="$LOG_DIR/ralph_gemini_${MODE}_iter_${ITERATION}_$(date '+%Y%m%d_%H%M%S').log"
+    LOG_FILE="$LOG_DIR/ralph_agy_${MODE}_iter_${ITERATION}_$(date '+%Y%m%d_%H%M%S').log"
     : > "$LOG_FILE"
     WATCH_PID=""
 
     if [ "$ROLLING_OUTPUT_INTERVAL" -gt 0 ] && [ "$ROLLING_OUTPUT_LINES" -gt 0 ] && [ -t 1 ] && [ -w /dev/tty ]; then
-        watch_latest_output "$LOG_FILE" "Gemini" &
+        watch_latest_output "$LOG_FILE" "Antigravity" &
         WATCH_PID=$!
     fi
 
-    # Run Gemini CLI with prompt piped via stdin
-    # -p "" enables non-interactive mode; stdin is appended before -p value
-    # --yolo auto-approves all tool calls
-    # -m sets the model
-    GEMINI_OUTPUT=""
-    if GEMINI_OUTPUT=$("$GEMINI_CMD" -p "$(cat "$PROMPT_FILE")" $GEMINI_MODEL_FLAG $([ "$YOLO_ENABLED" = true ] && echo "$YOLO_FLAG") 2>&1 | tee "$LOG_FILE"); then
+    # Run Antigravity CLI with prompt passed via -p flag
+    # -p "prompt" runs non-interactively
+    # --dangerously-skip-permissions auto-approves all tool calls
+    # --model sets the model (omitted for auto-selection)
+    AGY_OUTPUT=""
+    if AGY_OUTPUT=$("$AGY_CMD" -p "$(cat "$PROMPT_FILE")" $AGY_MODEL_FLAG $([ "$YOLO_ENABLED" = true ] && echo "$YOLO_FLAG") 2>&1 | tee "$LOG_FILE"); then
         if [ -n "$WATCH_PID" ]; then
             kill "$WATCH_PID" 2>/dev/null || true
             wait "$WATCH_PID" 2>/dev/null || true
         fi
         echo ""
-        echo -e "${GREEN}✓ Gemini execution completed${NC}"
+        echo -e "${GREEN}✓ Antigravity execution completed${NC}"
 
         # Check if DONE promise was output (accept both DONE and ALL_DONE variants)
-        if echo "$GEMINI_OUTPUT" | grep -qE "<promise>(ALL_)?DONE</promise>"; then
-            DETECTED_SIGNAL=$(echo "$GEMINI_OUTPUT" | grep -oE "<promise>(ALL_)?DONE</promise>" | tail -1)
+        if echo "$AGY_OUTPUT" | grep -qE "<promise>(ALL_)?DONE</promise>"; then
+            DETECTED_SIGNAL=$(echo "$AGY_OUTPUT" | grep -oE "<promise>(ALL_)?DONE</promise>" | tail -1)
             echo -e "${GREEN}✓ Completion signal detected: ${DETECTED_SIGNAL}${NC}"
             echo -e "${GREEN}✓ Task completed successfully!${NC}"
             CONSECUTIVE_FAILURES=0
@@ -403,7 +414,7 @@ while true; do
             if [ "$MODE" = "plan" ]; then
                 echo ""
                 echo -e "${GREEN}Planning complete!${NC}"
-                echo -e "${CYAN}Run './scripts/ralph-loop-gemini.sh' to start building.${NC}"
+                echo -e "${CYAN}Run './scripts/ralph-loop-agy.sh' to start building.${NC}"
                 echo -e "${CYAN}Or delete IMPLEMENTATION_PLAN.md to work directly from specs.${NC}"
                 break
             fi
@@ -413,7 +424,7 @@ while true; do
             echo -e "${YELLOW}  This means acceptance criteria were not met.${NC}"
             echo -e "${YELLOW}  Retrying in next iteration...${NC}"
             CONSECUTIVE_FAILURES=$((CONSECUTIVE_FAILURES + 1))
-            print_latest_output "$LOG_FILE" "Gemini"
+            print_latest_output "$LOG_FILE" "Antigravity"
 
             if [ $CONSECUTIVE_FAILURES -ge $MAX_CONSECUTIVE_FAILURES ]; then
                 echo ""
@@ -431,10 +442,10 @@ while true; do
             kill "$WATCH_PID" 2>/dev/null || true
             wait "$WATCH_PID" 2>/dev/null || true
         fi
-        echo -e "${RED}✗ Gemini execution failed${NC}"
+        echo -e "${RED}✗ Antigravity execution failed${NC}"
         echo -e "${YELLOW}Check log: $LOG_FILE${NC}"
         CONSECUTIVE_FAILURES=$((CONSECUTIVE_FAILURES + 1))
-        print_latest_output "$LOG_FILE" "Gemini"
+        print_latest_output "$LOG_FILE" "Antigravity"
     fi
 
     # Push changes after each iteration (if any)
@@ -453,5 +464,5 @@ done
 
 echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}      RALPH LOOP (Gemini) FINISHED ($ITERATION iterations)   ${NC}"
+echo -e "${GREEN}   RALPH LOOP (Antigravity) FINISHED ($ITERATION iterations)   ${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

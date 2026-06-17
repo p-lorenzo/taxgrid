@@ -32,10 +32,10 @@ describe('App Component', () => {
   it('renders print-only title and print button', () => {
     const wrapper = mount(App)
     
-    // Check that we render the print-only title container
-    const printTitle = wrapper.find('.print\\:block')
-    expect(printTitle.exists()).toBe(true)
-    expect(printTitle.text()).toContain('TaxGrid - Report Simulazione Fiscale')
+    // Check that we render the print report component
+    const printReport = wrapper.find('.print-report')
+    expect(printReport.exists()).toBe(true)
+    expect(printReport.text()).toContain('Simulazione Fiscale')
 
     // Check that print button exists
     const printBtn = wrapper.find('button.print\\:hidden')

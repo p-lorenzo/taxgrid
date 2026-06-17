@@ -11,6 +11,7 @@ import CardSrl from './components/CardSrl.vue'
 import CardDipendente from './components/CardDipendente.vue'
 import InfoTooltip from './components/InfoTooltip.vue'
 import draggable from 'vuedraggable'
+import PrintReport from './components/PrintReport.vue'
 import { computed, ref } from 'vue'
 
 const store = useTaxStore()
@@ -85,13 +86,9 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
 
 <template>
   <div class="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 p-4 sm:p-8 font-sans selection:bg-blue-600 selection:text-white">
-    <div class="max-w-7xl mx-auto">
-      
-      <!-- Print-only Title -->
-      <div class="hidden print:block mb-8 text-center border-b border-gray-200 pb-4">
-        <h1 class="text-3xl font-extrabold text-gray-900">TaxGrid - Report Simulazione Fiscale</h1>
-        <p class="text-xs text-gray-500 mt-1">Stima orientativa della tassazione e dei contributi previdenziali per l'anno fiscale 2025</p>
-      </div>
+    <!-- Interactive UI (hidden on print) -->
+    <div class="print:hidden">
+      <div class="max-w-7xl mx-auto">
 
       <!-- Header -->
       <header class="mb-12 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-center sm:text-left print:hidden">
@@ -434,6 +431,10 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
     </div>
 
     <Footer />
+    </div>
+
+    <!-- Dedicated Print Report (visible ONLY when printing) -->
+    <PrintReport class="hidden print:block" />
 
     <!-- Calculation Breakdown Dialog -->
     <CalculationBreakdown

@@ -14,3 +14,7 @@ Migliorare la funzione di stampa esistente (che si limita a nascondere/mostrare 
 - Per generare il QR Code, integrare una libreria leggera come `qrcode.vue` o `qrcode` nativa per JS.
 - Mantenere la logica basata su `@media print`. Quando l'utente clicca "Stampa/Esporta PDF", l'interfaccia principale (`App.vue`) viene nascosta (`print:hidden`), e viene mostrato solo il div del report formale (`print:block`).
 - Assicurarsi che le tabelle non vengano tagliate in mezzo (utilizzare `print:break-inside-avoid` su righe o blocchi chiave).
+
+## Status: COMPLETE
+
+<!-- NR_OF_TRIES: 1 -->

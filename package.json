@@ -12,6 +12,7 @@
     "@headlessui/vue": "^1.7.23",
     "@tailwindcss/vite": "^4.3.1",
     "pinia": "^3.0.4",
+    "qrcode.vue": "^3.10.0",
     "tailwindcss": "^4.3.1",
     "vue": "^3.5.34",
     "vuedraggable": "^4.1.0"

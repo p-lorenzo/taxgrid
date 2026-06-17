@@ -16,3 +16,4 @@
 - **2026-06-17**: Added Drag & Drop card sorting for tax regimes, extracted card markups into separate Vue components, and persisted the custom order in localStorage.
 - **2026-06-17**: Added PWA (Progressive Web App) support using vite-plugin-pwa, configured web app manifest and icons, caching strategy, auto-updates, and the theme-color meta tag.
 - **2026-06-17**: Added InfoTooltip component and implemented diffuse glossary tooltips for core Italian tax terms (IRPEF, IRES, IRAP, Gestione Separata, ATECO coefficient, local taxes, RAL).
+- **2026-06-17**: Verified and finalized formal PDF report (PrintReport.vue) with comparative table layout, QR code (qrcode.vue), analytical breakdown per regime, legal disclaimer, and print-optimized styling. Fixed TS margin type error and updated stale test assertion.
