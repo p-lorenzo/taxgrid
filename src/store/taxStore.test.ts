@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
 // Mock localStorage for node environment
@@ -13,7 +13,7 @@ const localStorageMock = (() => {
 })()
 Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, writable: true })
 
-import { useTaxStore, ATECO_CATEGORIES } from './taxStore'
+import { useTaxStore } from './taxStore'
 
 describe('TaxStore ATECO Dropdown Logic', () => {
   beforeEach(() => {
