@@ -5,6 +5,8 @@
 ![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-B73BFE?style=for-the-badge&logo=vite&logoColor=FFD62E)
 
+**[👉 Provalo live su taxgrid.com](https://taxgrid.com)**
+
 **TaxGrid** è una Single Page Application (SPA) open-source sviluppata in Vue 3 pensata per risolvere il problema della frammentazione e della poca chiarezza del sistema fiscale italiano. 
 
 Fornisce un pannello comparativo in tempo reale per calcolare, confrontare e ottimizzare il "Netto in Tasca" tra i principali regimi fiscali: **Partita IVA Forfettaria**, **Partita IVA Ordinaria** e **S.R.L. (con distribuzione utili o compenso amministratore)**.
