@@ -13,7 +13,7 @@ const localStorageMock = (() => {
 })()
 Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, writable: true })
 
-import { useTaxStore } from './taxStore'
+import { useTaxStore, ALIQUOTA_INPS_DATORE } from './taxStore'
 
 describe('TaxStore ATECO Dropdown Logic', () => {
   beforeEach(() => {
@@ -660,5 +660,122 @@ describe('TaxStore URL State Sharing', () => {
     const data2 = JSON.parse(atob(new URL(url2).searchParams.get('data')!))
     expect(data1.fatturato).toBe(50000)
     expect(data2.fatturato).toBe(80000)
+  })
+})
+
+describe('TaxStore RAL/Fatturato Toggle Conversion', () => {
+  const FACTOR = 1 + ALIQUOTA_INPS_DATORE // 1.2381
+
+  beforeEach(() => {
+    localStorage.clear()
+    setActivePinia(createPinia())
+  })
+
+  it('should convert RAL to Fatturato on toggle (42000 → 52000.20)', () => {
+    const store = useTaxStore()
+    store.inputMode = 'ral'
+    store.fatturato = 42000
+
+    // Simulate toggle: RAL → Fatturato
+    if (store.inputMode === 'ral') {
+      store.fatturato = Math.round(store.fatturato * FACTOR * 100) / 100
+    }
+    store.inputMode = 'fatturato'
+
+    expect(store.fatturato).toBeCloseTo(52000.20, 1)
+    expect(store.inputMode).toBe('fatturato')
+  })
+
+  it('should convert Fatturato to RAL on toggle (52000.20 → 42000)', () => {
+    const store = useTaxStore()
+    store.inputMode = 'fatturato'
+    store.fatturato = 52000.20
+
+    // Simulate toggle: Fatturato → RAL
+    if (store.inputMode === 'fatturato') {
+      store.fatturato = Math.round(store.fatturato / FACTOR * 100) / 100
+    }
+    store.inputMode = 'ral'
+
+    expect(store.fatturato).toBeCloseTo(42000, 1)
+    expect(store.inputMode).toBe('ral')
+  })
+
+  it('should preserve value on round-trip (RAL → Fatturato → RAL)', () => {
+    const store = useTaxStore()
+    store.inputMode = 'ral'
+    store.fatturato = 42000
+
+    // RAL → Fatturato
+    store.fatturato = Math.round(store.fatturato * FACTOR * 100) / 100
+    store.inputMode = 'fatturato'
+
+    // Fatturato → RAL
+    store.fatturato = Math.round(store.fatturato / FACTOR * 100) / 100
+    store.inputMode = 'ral'
+
+    expect(store.fatturato).toBeCloseTo(42000, 0)
+  })
+
+  it('should preserve value on round-trip (Fatturato → RAL → Fatturato)', () => {
+    const store = useTaxStore()
+    store.inputMode = 'fatturato'
+    store.fatturato = 50000
+
+    // Fatturato → RAL
+    store.fatturato = Math.round(store.fatturato / FACTOR * 100) / 100
+    store.inputMode = 'ral'
+
+    // RAL → Fatturato
+    store.fatturato = Math.round(store.fatturato * FACTOR * 100) / 100
+    store.inputMode = 'fatturato'
+
+    expect(store.fatturato).toBeCloseTo(50000, 0)
+  })
+
+  it('should produce 0 when converting from 0 (RAL → Fatturato)', () => {
+    const store = useTaxStore()
+    store.inputMode = 'ral'
+    store.fatturato = 0
+
+    store.fatturato = Math.round(store.fatturato * FACTOR * 100) / 100
+    store.inputMode = 'fatturato'
+
+    expect(store.fatturato).toBe(0)
+  })
+
+  it('should produce 0 when converting from 0 (Fatturato → RAL)', () => {
+    const store = useTaxStore()
+    store.inputMode = 'fatturato'
+    store.fatturato = 0
+
+    store.fatturato = Math.round(store.fatturato / FACTOR * 100) / 100
+    store.inputMode = 'ral'
+
+    expect(store.fatturato).toBe(0)
+  })
+
+  it('should handle high values without overflow (999999 RAL → Fatturato)', () => {
+    const store = useTaxStore()
+    store.inputMode = 'ral'
+    store.fatturato = 999999
+
+    store.fatturato = Math.round(store.fatturato * FACTOR * 100) / 100
+    store.inputMode = 'fatturato'
+
+    expect(store.fatturato).toBeGreaterThan(0)
+    expect(Number.isFinite(store.fatturato)).toBe(true)
+    expect(store.fatturato).toBeCloseTo(999999 * FACTOR, 0)
+  })
+
+  it('should round to 2 decimal places', () => {
+    const store = useTaxStore()
+    store.inputMode = 'ral'
+    store.fatturato = 30000
+
+    store.fatturato = Math.round(store.fatturato * FACTOR * 100) / 100
+    store.inputMode = 'fatturato'
+
+    expect(store.fatturato).toBe(37143)
   })
 })

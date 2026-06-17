@@ -26,6 +26,8 @@ export const ATECO_CATEGORIES: AtecoCategory[] = [
   { id: 'intermediari', name: 'Intermediari del commercio (62%)', coef: 0.62 },
 ]
 
+export const ALIQUOTA_INPS_DATORE = 0.2381
+
 export const useTaxStore = defineStore('taxStore', () => {
   // Global Variables
   const fatturato = ref(50000)
@@ -34,7 +36,7 @@ export const useTaxStore = defineStore('taxStore', () => {
 
   // Effective fatturato for P.IVA cards: in RAL mode, convert RAL to fatturato equivalente
   const effectiveFatturato = computed(() => {
-    if (inputMode.value === 'ral') return fatturato.value * 1.2381
+    if (inputMode.value === 'ral') return fatturato.value * (1 + ALIQUOTA_INPS_DATORE)
     return fatturato.value
   })
   const speseDeducibili = ref(5000)
@@ -1150,7 +1152,6 @@ export const useTaxStore = defineStore('taxStore', () => {
 
   // Calculations: Dipendente
   const dipendenteResult = computed(() => {
-    const aliquotaInpsDatore = 0.2381;
     const aliquotaInpsDipendente = 0.0919;
 
     const isRalMode = inputMode.value === 'ral'
@@ -1160,11 +1161,11 @@ export const useTaxStore = defineStore('taxStore', () => {
 
     if (isRalMode) {
       ral = fatturato.value
-      inpsDatore = ral * aliquotaInpsDatore
-      fatturatoEquivalente = ral * (1 + aliquotaInpsDatore)
+      inpsDatore = ral * ALIQUOTA_INPS_DATORE
+      fatturatoEquivalente = ral * (1 + ALIQUOTA_INPS_DATORE)
     } else {
-      ral = fatturato.value / (1 + aliquotaInpsDatore)
-      inpsDatore = ral * aliquotaInpsDatore
+      ral = fatturato.value / (1 + ALIQUOTA_INPS_DATORE)
+      inpsDatore = ral * ALIQUOTA_INPS_DATORE
       fatturatoEquivalente = fatturato.value
     }
 
@@ -1204,7 +1205,7 @@ export const useTaxStore = defineStore('taxStore', () => {
     } else {
       steps.push({ label: 'Costo Aziendale Totale (Fatturato)', value: fatturato.value, operator: '+' })
       steps.push({ 
-        label: `INPS a carico Azienda (contrib. stimati ~ ${(aliquotaInpsDatore * 100).toFixed(2)}%)`, 
+        label: `INPS a carico Azienda (contrib. stimati ~ ${(ALIQUOTA_INPS_DATORE * 100).toFixed(2)}%)`, 
         value: inpsDatore, 
         operator: '-', 
         details: 'Oneri contributivi obbligatori a carico del datore di lavoro' 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useTaxStore } from './store/taxStore'
+import { useTaxStore, ALIQUOTA_INPS_DATORE } from './store/taxStore'
 import { Switch } from '@headlessui/vue'
 import Footer from './components/Footer.vue'
 import ComparisonChart from './components/ComparisonChart.vue'
@@ -151,7 +151,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
                 <span class="text-xs text-gray-500 dark:text-gray-400 font-medium">Fatt.</span>
                 <Switch
                   :model-value="store.inputMode === 'ral'"
-                  @update:model-value="(val: boolean) => store.inputMode = val ? 'ral' : 'fatturato'"
+                  @update:model-value="(val: boolean) => { const newMode = val ? 'ral' : 'fatturato'; if (store.inputMode !== newMode) { const factor = 1 + ALIQUOTA_INPS_DATORE; store.fatturato = store.inputMode === 'ral' ? Math.round(store.fatturato * factor * 100) / 100 : Math.round(store.fatturato / factor * 100) / 100; store.inputMode = newMode; } }"
                   :class="store.inputMode === 'ral' ? 'bg-[#e2af0d]' : 'bg-gray-200 dark:bg-gray-600'"
                   class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#e2af0d]"
                 >
