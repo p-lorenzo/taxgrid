@@ -14,8 +14,10 @@ const chartData = computed(() => {
   // Forfettario
   if (store.showForfettario) {
     const res = store.forfettarioResult
+    const spese = store.speseDeducibili
     const rawSegments = [
       { label: 'Netto in Tasca', value: res.netto, color: 'bg-[#e2af0d]' },
+      { label: 'Spese (non deducibili)', value: spese, color: 'bg-gray-400 dark:bg-gray-500' },
       { label: 'INPS / Contributi', value: res.inps, color: 'bg-blue-500 dark:bg-blue-600' },
       { label: 'Tasse (Sostitutiva)', value: res.tasse, color: 'bg-red-500 dark:bg-red-600' }
     ]
@@ -83,8 +85,10 @@ const chartData = computed(() => {
   // Dipendente
   if (store.showDipendente) {
     const res = store.dipendenteResult
+    const spese = store.speseDeducibili
     const rawSegments = [
       { label: 'Netto in Tasca', value: res.netto, color: 'bg-[#e2af0d]' },
+      { label: 'Spese (non deducibili)', value: spese, color: 'bg-gray-400 dark:bg-gray-500' },
       { label: 'INPS Totale (Dip.+Az.)', value: res.inps, color: 'bg-blue-500 dark:bg-blue-600' },
       { label: 'Tasse (IRPEF)', value: res.tasse, color: 'bg-red-500 dark:bg-red-600' }
     ]

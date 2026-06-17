@@ -330,7 +330,8 @@ export const useTaxStore = defineStore('taxStore', () => {
     const taxRate = forfettarioStartup.value ? 0.05 : 0.15
     const tasse = imponibileNetto * taxRate
     
-    const netto = effFatt - inps - tasse
+    const nettoFiscale = effFatt - inps - tasse
+    const netto = Math.max(nettoFiscale - speseDeducibili.value, 0)
     const nettoMensile = netto / mesiParagone.value
     
     // Construct breakdown steps
@@ -410,11 +411,28 @@ export const useTaxStore = defineStore('taxStore', () => {
         : `Aliquota ordinaria del 15%`
     })
     
+    if (speseDeducibili.value > 0) {
+      steps.push({
+        label: 'Netto Fiscale (al lordo spese)',
+        value: nettoFiscale,
+        operator: '=',
+        details: 'Risultato del calcolo fiscale prima della sottrazione delle spese vive non deducibili'
+      })
+      steps.push({
+        label: 'Spese (non deducibili)',
+        value: speseDeducibili.value,
+        operator: '-',
+        details: 'In regime forfettario le spese non sono fiscalmente deducibili: vengono sottratte dal netto dopo il calcolo delle imposte, per un confronto equo con gli altri regimi'
+      })
+    }
+    
     steps.push({
-      label: 'Netto in Tasca',
+      label: 'Netto Finale',
       value: netto,
       operator: '=',
-      details: 'Fatturato Annuo meno INPS e Imposta Sostitutiva'
+      details: speseDeducibili.value > 0
+        ? 'Fatturato Annuo meno INPS, Imposta Sostitutiva e Spese non deducibili'
+        : 'Fatturato Annuo meno INPS e Imposta Sostitutiva'
     })
     
     return { inps, tasse, netto, nettoMensile, breakdown: { steps } }
@@ -1175,7 +1193,8 @@ export const useTaxStore = defineStore('taxStore', () => {
     const tasseTotali = irpefNetta + tasseRegionali + tasseComunali;
     const inpsTotale = inpsDatore + inpsDipendente;
     
-    const netto = ral - inpsDipendente - tasseTotali + creditoEffettivo;
+    const nettoFiscale = ral - inpsDipendente - tasseTotali + creditoEffettivo;
+    const netto = Math.max(nettoFiscale - speseDeducibili.value, 0);
     const nettoMensile = netto / mesiParagone.value;
 
     const steps: BreakdownStep[] = []
@@ -1252,11 +1271,28 @@ export const useTaxStore = defineStore('taxStore', () => {
       }
     }
 
+    if (speseDeducibili.value > 0) {
+      steps.push({
+        label: 'Netto Fiscale (al lordo spese)',
+        value: nettoFiscale,
+        operator: '=',
+        details: 'Risultato del calcolo fiscale prima della sottrazione delle spese vive non deducibili'
+      })
+      steps.push({
+        label: 'Spese (non deducibili)',
+        value: speseDeducibili.value,
+        operator: '-',
+        details: 'Per il lavoratore dipendente le spese aziendali non sono fiscalmente deducibili: vengono sottratte dal netto per un confronto equo con gli altri regimi'
+      })
+    }
+
     steps.push({
-      label: 'Netto in Tasca',
+      label: 'Netto Finale',
       value: netto,
       operator: '=',
-      details: 'RAL meno contributi INPS dipendente e imposte, più trattamento integrativo'
+      details: speseDeducibili.value > 0
+        ? 'RAL meno contributi INPS, imposte e trattamento integrativo, e Spese non deducibili'
+        : 'RAL meno contributi INPS dipendente e imposte, più trattamento integrativo'
     });
 
     return {

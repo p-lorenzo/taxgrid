@@ -47,14 +47,14 @@ describe('TaxStore ATECO Dropdown Logic', () => {
 
     expect(store.forfettarioResult.inps).toBeCloseTo(20334.60, 2)
     expect(store.forfettarioResult.tasse).toBeCloseTo(8649.81, 2)
-    expect(store.forfettarioResult.netto).toBeCloseTo(71015.59, 2)
+    expect(store.forfettarioResult.netto).toBeCloseTo(66015.59, 2)
 
     store.atecoCategory = 'commercio'
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     expect(store.forfettarioResult.inps).toBeCloseTo(10428.00, 2)
     expect(store.forfettarioResult.tasse).toBeCloseTo(4435.80, 2)
-    expect(store.forfettarioResult.netto).toBeCloseTo(85136.20, 2)
+    expect(store.forfettarioResult.netto).toBeCloseTo(80136.20, 2)
   })
 
   it('should load state from localStorage with atecoCategory', () => {
@@ -198,7 +198,7 @@ describe('TaxStore Expenses Mode (Simple / Advanced)', () => {
     // netto = 50000 - 10167.3 - 1441.635 = 38391.07
     expect(store.forfettarioResult.inps).toBeCloseTo(10167.30, 2)
     expect(store.forfettarioResult.tasse).toBeCloseTo(1441.635, 2)
-    expect(store.forfettarioResult.netto).toBeCloseTo(38391.065, 2)
+    expect(store.forfettarioResult.netto).toBeCloseTo(33391.065, 2)
 
     // SRL compenso mode:
     // utileLordoOperativo = 50000 - 5000 - 4000 = 41000
