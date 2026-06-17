@@ -143,7 +143,27 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
         
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Fatturato Annuo Stimato</label>
+            <div class="flex items-center justify-between mb-2">
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                {{ store.inputMode === 'ral' ? 'RAL (Retribuzione Annua Lorda)' : 'Fatturato Annuo Stimato' }}
+              </label>
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs text-gray-500 dark:text-gray-400 font-medium">Fatt.</span>
+                <Switch
+                  :model-value="store.inputMode === 'ral'"
+                  @update:model-value="(val: boolean) => store.inputMode = val ? 'ral' : 'fatturato'"
+                  :class="store.inputMode === 'ral' ? 'bg-[#e2af0d]' : 'bg-gray-200 dark:bg-gray-600'"
+                  class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#e2af0d]"
+                >
+                  <span class="sr-only">Toggle Fatturato / RAL</span>
+                  <span
+                    :class="store.inputMode === 'ral' ? 'translate-x-5' : 'translate-x-1'"
+                    class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform"
+                  />
+                </Switch>
+                <span class="text-xs text-gray-500 dark:text-gray-400 font-medium">RAL</span>
+              </div>
+            </div>
             <div class="relative print:hidden">
               <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">€</span>
               <input type="number" v-model="store.fatturato" class="block w-full pl-8 pr-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />

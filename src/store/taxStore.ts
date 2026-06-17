@@ -29,7 +29,14 @@ export const ATECO_CATEGORIES: AtecoCategory[] = [
 export const useTaxStore = defineStore('taxStore', () => {
   // Global Variables
   const fatturato = ref(50000)
+  const inputMode = ref<'fatturato' | 'ral'>('fatturato')
   const advancedMode = ref(false) // Sostituisce expensesMode come stato primario
+
+  // Effective fatturato for P.IVA cards: in RAL mode, convert RAL to fatturato equivalente
+  const effectiveFatturato = computed(() => {
+    if (inputMode.value === 'ral') return fatturato.value * 1.2381
+    return fatturato.value
+  })
   const speseDeducibili = ref(5000)
   const speseDetraibili = ref(0)
   const atecoCategory = ref('professionisti')
@@ -95,6 +102,7 @@ export const useTaxStore = defineStore('taxStore', () => {
       try {
         const parsed = JSON.parse(saved)
         fatturato.value = parsed.fatturato ?? fatturato.value
+        inputMode.value = parsed.inputMode ?? inputMode.value
         
         if (parsed.advancedMode !== undefined) {
           advancedMode.value = parsed.advancedMode
@@ -160,6 +168,7 @@ export const useTaxStore = defineStore('taxStore', () => {
       const parsed = JSON.parse(atob(dataParam))
 
       if (parsed.fatturato !== undefined) fatturato.value = Number(parsed.fatturato)
+      if (parsed.inputMode !== undefined) inputMode.value = parsed.inputMode === 'ral' ? 'ral' : 'fatturato'
       if (parsed.advancedMode !== undefined) advancedMode.value = Boolean(parsed.advancedMode)
       if (parsed.speseDeducibili !== undefined) speseDeducibili.value = Number(parsed.speseDeducibili)
       if (parsed.speseDetraibili !== undefined) speseDetraibili.value = Number(parsed.speseDetraibili)
@@ -198,6 +207,7 @@ export const useTaxStore = defineStore('taxStore', () => {
 
     const state = {
       fatturato: fatturato.value,
+      inputMode: inputMode.value,
       advancedMode: advancedMode.value,
       speseDeducibili: speseDeducibili.value,
       speseDetraibili: speseDetraibili.value,
@@ -236,7 +246,7 @@ export const useTaxStore = defineStore('taxStore', () => {
 
   watch(
     [
-      fatturato, advancedMode, speseDeducibili, speseDetraibili, atecoCategory, atecoCoef,
+      fatturato, inputMode, advancedMode, speseDeducibili, speseDetraibili, atecoCategory, atecoCoef,
       forfettarioCassa, forfettarioStartup, forfettarioRiduzione35, forfettarioRiduzione50,
       ordinarioCassa, ordinarioRiduzione50,
       srlDistribuzione, srlCassa, srlRiduzione50,
@@ -247,6 +257,7 @@ export const useTaxStore = defineStore('taxStore', () => {
     () => {
       localStorage.setItem('taxgrid_state', JSON.stringify({
         fatturato: fatturato.value,
+        inputMode: inputMode.value,
         advancedMode: advancedMode.value,
         speseDeducibili: speseDeducibili.value,
         speseDetraibili: speseDetraibili.value,
@@ -280,7 +291,8 @@ export const useTaxStore = defineStore('taxStore', () => {
 
   // Calculations: Forfettario
   const forfettarioResult = computed(() => {
-    const imponibile = fatturato.value * atecoCoef.value
+    const effFatt = effectiveFatturato.value
+    const imponibile = effFatt * atecoCoef.value
     let inps = 0
     
     const hasJob = advancedMode.value && hasLavoroDipendente.value
@@ -318,12 +330,12 @@ export const useTaxStore = defineStore('taxStore', () => {
     const taxRate = forfettarioStartup.value ? 0.05 : 0.15
     const tasse = imponibileNetto * taxRate
     
-    const netto = fatturato.value - inps - tasse
+    const netto = effFatt - inps - tasse
     const nettoMensile = netto / mesiParagone.value
     
     // Construct breakdown steps
     const steps: BreakdownStep[] = [
-      { label: 'Fatturato Annuo', value: fatturato.value, operator: '+' },
+      { label: 'Fatturato Annuo', value: effFatt, operator: '+' },
       { label: `Imponibile Lordo (ATECO ${(atecoCoef.value * 100).toFixed(0)}%)`, value: imponibile, operator: '*', details: 'Fatturato × Coefficiente di redditività del codice ATECO' }
     ]
     
@@ -410,7 +422,8 @@ export const useTaxStore = defineStore('taxStore', () => {
 
   // Calculations: Ordinario
   const ordinarioResult = computed(() => {
-    const imponibileBase = Math.max(fatturato.value - speseDeducibili.value, 0)
+    const effFatt = effectiveFatturato.value
+    const imponibileBase = Math.max(effFatt - speseDeducibili.value, 0)
     let inps = 0
     
     const hasJob = advancedMode.value && hasLavoroDipendente.value
@@ -459,11 +472,11 @@ export const useTaxStore = defineStore('taxStore', () => {
 
     const tasseTotali = irpefNetta + tasseRegionali + tasseComunali
 
-    const netto = fatturato.value - speseDeducibili.value - inps - tasseTotali
+    const netto = effFatt - speseDeducibili.value - inps - tasseTotali
     const nettoMensile = netto / mesiParagone.value
 
     const steps: BreakdownStep[] = [
-      { label: 'Fatturato Annuo', value: fatturato.value, operator: '+' },
+      { label: 'Fatturato Annuo', value: effFatt, operator: '+' },
       { 
         label: 'Spese Deducibili', 
         value: speseDeducibili.value, 
@@ -641,7 +654,8 @@ export const useTaxStore = defineStore('taxStore', () => {
   // Calculations: SRL
   const srlResult = computed(() => {
     const costiFissiSrl = 4000;
-    const utileLordoOperativo = Math.max(fatturato.value - speseDeducibili.value - costiFissiSrl, 0);
+    const effFatt = effectiveFatturato.value
+    const utileLordoOperativo = Math.max(effFatt - speseDeducibili.value - costiFissiSrl, 0);
 
     let tasseSrl = 0;
     let inpsTotaleSostenutoDaUtente = 0;
@@ -654,7 +668,7 @@ export const useTaxStore = defineStore('taxStore', () => {
     const capInps = advancedMode.value ? massimaleInps.value : 119650;
 
     const steps: BreakdownStep[] = [
-      { label: 'Fatturato Annuo SRL', value: fatturato.value, operator: '+' },
+      { label: 'Fatturato Annuo SRL', value: effFatt, operator: '+' },
       { 
         label: 'Spese Deducibili', 
         value: speseDeducibili.value, 
@@ -1118,19 +1132,40 @@ export const useTaxStore = defineStore('taxStore', () => {
 
   // Calculations: Dipendente
   const dipendenteResult = computed(() => {
-    // Fatturato = Costo Aziendale totale (RAL + Contributi INPS Datore)
-    // Assumiamo: INPS Datore ~ 23.81%, INPS Dipendente ~ 9.19%
     const aliquotaInpsDatore = 0.2381;
     const aliquotaInpsDipendente = 0.0919;
 
-    const ral = fatturato.value / (1 + aliquotaInpsDatore);
-    const inpsDatore = ral * aliquotaInpsDatore;
+    const isRalMode = inputMode.value === 'ral'
+    let ral: number
+    let inpsDatore: number
+    let fatturatoEquivalente: number
+
+    if (isRalMode) {
+      ral = fatturato.value
+      inpsDatore = ral * aliquotaInpsDatore
+      fatturatoEquivalente = ral * (1 + aliquotaInpsDatore)
+    } else {
+      ral = fatturato.value / (1 + aliquotaInpsDatore)
+      inpsDatore = ral * aliquotaInpsDatore
+      fatturatoEquivalente = fatturato.value
+    }
+
     const inpsDipendente = ral * aliquotaInpsDipendente;
     
     const imponibileFiscale = Math.max(ral - inpsDipendente, 0);
     const irpefLorda = calcolaIrpefLorda(imponibileFiscale);
     const detrazioni = calcolaDetrazioniDipendente(imponibileFiscale);
-    const irpefNetta = Math.max(irpefLorda - detrazioni, 0);
+    const irpefNettaPreTrattamento = Math.max(irpefLorda - detrazioni, 0);
+
+    // Trattamento Integrativo (ex Bonus Renzi)
+    let trattamentoIntegrativo = 0
+    if (imponibileFiscale <= 15000) {
+      trattamentoIntegrativo = 1200
+    } else if (imponibileFiscale <= 28000) {
+      trattamentoIntegrativo = 1200 * (28000 - imponibileFiscale) / 13000
+    }
+    const creditoEffettivo = Math.min(trattamentoIntegrativo, irpefNettaPreTrattamento)
+    const irpefNetta = irpefNettaPreTrattamento - creditoEffettivo
 
     const addizionaleRegionaleVal = advancedMode.value ? addizionaleRegionale.value : 0;
     const addizionaleComunaleVal = advancedMode.value ? addizionaleComunale.value : 0;
@@ -1140,32 +1175,37 @@ export const useTaxStore = defineStore('taxStore', () => {
     const tasseTotali = irpefNetta + tasseRegionali + tasseComunali;
     const inpsTotale = inpsDatore + inpsDipendente;
     
-    const netto = ral - inpsDipendente - tasseTotali;
+    const netto = ral - inpsDipendente - tasseTotali + creditoEffettivo;
     const nettoMensile = netto / mesiParagone.value;
 
-    const steps: BreakdownStep[] = [
-      { label: 'Costo Aziendale Totale (Fatturato)', value: fatturato.value, operator: '+' },
-      { 
+    const steps: BreakdownStep[] = []
+
+    if (isRalMode) {
+      steps.push({ label: 'RAL (Retribuzione Annua Lorda)', value: ral, operator: '+' })
+    } else {
+      steps.push({ label: 'Costo Aziendale Totale (Fatturato)', value: fatturato.value, operator: '+' })
+      steps.push({ 
         label: `INPS a carico Azienda (contrib. stimati ~ ${(aliquotaInpsDatore * 100).toFixed(2)}%)`, 
         value: inpsDatore, 
         operator: '-', 
         details: 'Oneri contributivi obbligatori a carico del datore di lavoro' 
-      },
-      { label: 'RAL Calcolata (Retribuzione Annua Lorda)', value: ral, operator: '=' },
-      { 
-        label: `INPS a carico Dipendente (~ ${(aliquotaInpsDipendente * 100).toFixed(2)}%)`, 
-        value: inpsDipendente, 
-        operator: '-', 
-        details: 'Quota contributiva a carico del lavoratore trattenuta in busta paga' 
-      },
-      { label: 'Imponibile Fiscale', value: imponibileFiscale, operator: '=' },
-      { 
-        label: 'IRPEF Lorda', 
-        value: irpefLorda, 
-        operator: '-', 
-        details: descriviIrpefScaglioni(imponibileFiscale) 
-      }
-    ];
+      })
+      steps.push({ label: 'RAL Calcolata (Retribuzione Annua Lorda)', value: ral, operator: '=' })
+    }
+
+    steps.push({ 
+      label: `INPS a carico Dipendente (~ ${(aliquotaInpsDipendente * 100).toFixed(2)}%)`, 
+      value: inpsDipendente, 
+      operator: '-', 
+      details: 'Quota contributiva a carico del lavoratore trattenuta in busta paga' 
+    })
+    steps.push({ label: 'Imponibile Fiscale', value: imponibileFiscale, operator: '=' })
+    steps.push({ 
+      label: 'IRPEF Lorda', 
+      value: irpefLorda, 
+      operator: '-', 
+      details: descriviIrpefScaglioni(imponibileFiscale) 
+    })
 
     if (detrazioni > 0) {
       steps.push({
@@ -1174,6 +1214,17 @@ export const useTaxStore = defineStore('taxStore', () => {
         operator: '+',
         details: 'Sconto IRPEF per redditi da lavoro dipendente e assimilati'
       });
+    }
+
+    if (creditoEffettivo > 0) {
+      steps.push({
+        label: 'Trattamento Integrativo (ex Bonus Renzi)',
+        value: creditoEffettivo,
+        operator: '+',
+        details: trattamentoIntegrativo === 1200
+          ? 'Credito pieno di € 1.200 per imponibile fino a € 15.000'
+          : `Credito ridotto: € 1.200 × (28.000 − ${imponibileFiscale.toLocaleString('it-IT')}) ÷ 13.000`
+      })
     }
 
     steps.push({
@@ -1205,7 +1256,7 @@ export const useTaxStore = defineStore('taxStore', () => {
       label: 'Netto in Tasca',
       value: netto,
       operator: '=',
-      details: 'RAL meno contributi INPS dipendente e imposte'
+      details: 'RAL meno contributi INPS dipendente e imposte, più trattamento integrativo'
     });
 
     return {
@@ -1216,6 +1267,7 @@ export const useTaxStore = defineStore('taxStore', () => {
       tasse: tasseTotali,
       netto,
       nettoMensile,
+      fatturatoEquivalente,
       breakdown: { steps }
     }
   })
@@ -1253,7 +1305,7 @@ export const useTaxStore = defineStore('taxStore', () => {
   })
 
   return {
-    fatturato, expensesMode, advancedMode, speseDeducibili, speseDetraibili, atecoCategory, atecoCoef, ATECO_CATEGORIES,
+    fatturato, inputMode, effectiveFatturato, expensesMode, advancedMode, speseDeducibili, speseDetraibili, atecoCategory, atecoCoef, ATECO_CATEGORIES,
     forfettarioCassa, forfettarioStartup, forfettarioRiduzione35, forfettarioRiduzione50,
     ordinarioCassa, ordinarioRiduzione50,
     srlDistribuzione, srlCassa, srlRiduzione50,

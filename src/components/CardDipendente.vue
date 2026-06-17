@@ -31,9 +31,15 @@ defineEmits<{
     <div class="p-6 flex-grow flex flex-col">
       <div class="mb-6 space-y-4">
         <div class="p-3 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-400">
-          <p>
+          <p v-if="store.inputMode === 'ral'">
+            La <strong>RAL inserita ({{ formatCurrency(store.fatturato) }})</strong> corrisponde al tuo lordo annuo.
+            Per il confronto con gli altri regimi, viene calcolato un fatturato equivalente
+            (<strong>{{ formatCurrency(store.dipendenteResult.fatturatoEquivalente) }}</strong> = RAL + contributi a carico azienda).
+          </p>
+          <p v-else>
             Il <strong>Fatturato Annuo ({{ formatCurrency(store.fatturato) }})</strong> viene considerato come il
-            <strong>Costo Aziendale Totale</strong>. Da qui si ricava la RAL sottraendo i contributi a carico dell'azienda.
+            <strong>Costo Aziendale Totale</strong>. Da qui si ricava la RAL
+            (<strong>{{ formatCurrency(store.dipendenteResult.ral) }}</strong>) sottraendo i contributi a carico dell'azienda.
           </p>
         </div>
 

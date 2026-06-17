@@ -19,7 +19,7 @@ const formattedDate = computed(() => {
 
 // Helper methods to calculate values for the comparison table
 const getAddizionaliOrd = () => {
-  const imponibileBase = Math.max(store.fatturato - store.speseDeducibili, 0)
+  const imponibileBase = Math.max(store.effectiveFatturato - store.speseDeducibili, 0)
   const imponibilePivaFiscale = Math.max(imponibileBase - store.ordinarioResult.inps, 0)
   const regVal = store.advancedMode ? store.addizionaleRegionale : 0
   const comVal = store.advancedMode ? store.addizionaleComunale : 0
@@ -28,7 +28,7 @@ const getAddizionaliOrd = () => {
 
 const getAddizionaliSrl = () => {
   if (store.srlDistribuzione !== 'compenso') return 0
-  const utileLordoOperativo = Math.max(store.fatturato - store.speseDeducibili - 4000, 0)
+  const utileLordoOperativo = Math.max(store.effectiveFatturato - store.speseDeducibili - 4000, 0)
   const aliquotaGsAzienda = (store.advancedMode && store.hasLavoroDipendente) ? 0.16 : 0.2239
   const compensoLordo = utileLordoOperativo / (1 + aliquotaGsAzienda)
   const capInps = store.advancedMode ? store.massimaleInps : 119650
@@ -50,7 +50,7 @@ const getAddizionaliDip = () => {
 
 const getDetrazioniSrl = () => {
   if (store.srlDistribuzione !== 'compenso') return 0
-  const utileLordoOperativo = Math.max(store.fatturato - store.speseDeducibili - 4000, 0)
+  const utileLordoOperativo = Math.max(store.effectiveFatturato - store.speseDeducibili - 4000, 0)
   const aliquotaGsAzienda = (store.advancedMode && store.hasLavoroDipendente) ? 0.16 : 0.2239
   const aliquotaGsAmministratore = (store.advancedMode && store.hasLavoroDipendente) ? 0.08 : 0.1120
   const compensoLordo = utileLordoOperativo / (1 + aliquotaGsAzienda)
@@ -103,10 +103,10 @@ const rows = computed(() => {
   // Row 1: Lordo / Costo Azienda
   result.push({
     label: 'Fatturato Lordo / Costo Azienda',
-    forfettario: formatCurrency(store.fatturato),
-    ordinario: formatCurrency(store.fatturato),
-    srl: formatCurrency(store.fatturato),
-    dipendente: formatCurrency(store.fatturato),
+    forfettario: formatCurrency(store.effectiveFatturato),
+    ordinario: formatCurrency(store.effectiveFatturato),
+    srl: formatCurrency(store.effectiveFatturato),
+    dipendente: formatCurrency(store.effectiveFatturato),
   })
 
   // Row 2: Coefficiente ATECO
@@ -121,7 +121,7 @@ const rows = computed(() => {
   // Row 3: Spese Deducibili / Costi Gestione
   result.push({
     label: 'Spese Deducibili / Costi Gestione',
-    forfettario: `${formatCurrency(store.fatturato * (1 - store.atecoCoef))} (Forfettarie)`,
+    forfettario: `${formatCurrency(store.effectiveFatturato * (1 - store.atecoCoef))} (Forfettarie)`,
     ordinario: formatCurrency(store.speseDeducibili),
     srl: `${formatCurrency(store.speseDeducibili)} (Op.) + ${formatCurrency(4000)} (Fissi SRL)`,
     dipendente: '—',
@@ -130,7 +130,7 @@ const rows = computed(() => {
   // Row 4: INPS a Carico Azienda
   let inpsAziendaSrl = 0
   if (store.srlDistribuzione === 'compenso') {
-    const utileLordoOperativo = Math.max(store.fatturato - store.speseDeducibili - 4000, 0)
+    const utileLordoOperativo = Math.max(store.effectiveFatturato - store.speseDeducibili - 4000, 0)
     const aliquotaGsAzienda = (store.advancedMode && store.hasLavoroDipendente) ? 0.16 : 0.2239
     const compensoLordo = utileLordoOperativo / (1 + aliquotaGsAzienda)
     const capInps = store.advancedMode ? store.massimaleInps : 119650
@@ -149,7 +149,7 @@ const rows = computed(() => {
   // Row 5: RAL / Retribuzione Lorda
   let compensoLordoSrl = 0
   if (store.srlDistribuzione === 'compenso') {
-    const utileLordoOperativo = Math.max(store.fatturato - store.speseDeducibili - 4000, 0)
+    const utileLordoOperativo = Math.max(store.effectiveFatturato - store.speseDeducibili - 4000, 0)
     const aliquotaGsAzienda = (store.advancedMode && store.hasLavoroDipendente) ? 0.16 : 0.2239
     compensoLordoSrl = utileLordoOperativo / (1 + aliquotaGsAzienda)
   }
@@ -166,7 +166,7 @@ const rows = computed(() => {
   // Row 6: INPS a Carico Lavoratore / Titolare
   let inpsPersSrl = 0
   if (store.srlDistribuzione === 'compenso') {
-    const utileLordoOperativo = Math.max(store.fatturato - store.speseDeducibili - 4000, 0)
+    const utileLordoOperativo = Math.max(store.effectiveFatturato - store.speseDeducibili - 4000, 0)
     const aliquotaGsAzienda = (store.advancedMode && store.hasLavoroDipendente) ? 0.16 : 0.2239
     const aliquotaGsAmministratore = (store.advancedMode && store.hasLavoroDipendente) ? 0.08 : 0.1120
     const compensoLordo = utileLordoOperativo / (1 + aliquotaGsAzienda)
@@ -185,7 +185,7 @@ const rows = computed(() => {
 
   // Row 7: Imponibile Fiscale
   let imponibileFiscaleSrl = 0
-  const utileLordoOperativo = Math.max(store.fatturato - store.speseDeducibili - 4000, 0)
+  const utileLordoOperativo = Math.max(store.effectiveFatturato - store.speseDeducibili - 4000, 0)
   if (store.srlDistribuzione === 'compenso') {
     const aliquotaGsAzienda = (store.advancedMode && store.hasLavoroDipendente) ? 0.16 : 0.2239
     const aliquotaGsAmministratore = (store.advancedMode && store.hasLavoroDipendente) ? 0.08 : 0.1120
@@ -197,8 +197,8 @@ const rows = computed(() => {
     imponibileFiscaleSrl = utileLordoOperativo
   }
 
-  const imponibileForf = Math.max(store.fatturato * store.atecoCoef - store.forfettarioResult.inps, 0)
-  const imponibileBaseOrd = Math.max(store.fatturato - store.speseDeducibili, 0)
+  const imponibileForf = Math.max(store.effectiveFatturato * store.atecoCoef - store.forfettarioResult.inps, 0)
+  const imponibileBaseOrd = Math.max(store.effectiveFatturato - store.speseDeducibili, 0)
   const imponibileOrd = Math.max(imponibileBaseOrd - store.ordinarioResult.inps, 0)
   const imponibileDip = store.dipendenteResult.ral - inpsDip
 
@@ -294,7 +294,7 @@ const rows = computed(() => {
       <div class="grid grid-cols-2 md:grid-cols-4 gap-y-3 gap-x-6 text-xs text-gray-700">
         <div>
           <span class="font-semibold block text-gray-500 text-[10px] uppercase">Fatturato Annuo / Costo Azienda</span>
-          <span class="font-bold text-sm text-gray-900">{{ formatCurrency(store.fatturato) }}</span>
+          <span class="font-bold text-sm text-gray-900">{{ formatCurrency(store.effectiveFatturato) }}</span>
         </div>
         <div>
           <span class="font-semibold block text-gray-500 text-[10px] uppercase">Spese Deducibili / Operative</span>
