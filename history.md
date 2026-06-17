@@ -6,4 +6,5 @@
 - **2026-06-17**: Introduced Simple/Advanced expenses mode toggle with separate deductible and detraibile (19%) expenses.
 - **2026-06-17**: Added monthly salary comparison slider and dynamic row to show monthly income comparisons.
 - **2026-06-17**: Added INPS contribution reductions (35% and 50%) for eligible regimes under Artigiani & Commercianti cassa, with info tooltips and state synchronization.
+- **2026-06-17**: Reworked advanced parameters section (RAL cumulo IRPEF, 24% GS rate, full-time Artigiani exemption, local addizionali, custom INPS cap, and layout changes).
 

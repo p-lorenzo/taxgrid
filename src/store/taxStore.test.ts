@@ -172,6 +172,8 @@ describe('TaxStore Expenses Mode (Simple / Advanced)', () => {
     const store = useTaxStore()
     store.fatturato = 50000
     store.expensesMode = 'advanced'
+    store.addizionaleRegionale = 0
+    store.addizionaleComunale = 0
     store.speseDeducibili = 5000
     store.speseDetraibili = 10000
 
@@ -395,6 +397,92 @@ describe('TaxStore INPS Reductions Logic', () => {
     store.srlRiduzione50 = true
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(store.srlResult.inps).toBeCloseTo(baseInps * 0.50, 2)
+  })
+})
+
+describe('TaxStore Advanced Parameters (RAL, Local Taxes, INPS Cap, Full-Time Exemptions)', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    setActivePinia(createPinia())
+  })
+
+  it('should apply cumulative IRPEF when RAL is present in Ordinario', () => {
+    const store = useTaxStore()
+    store.fatturato = 20000
+    store.speseDeducibili = 0
+    store.advancedMode = true
+    store.hasLavoroDipendente = false
+    store.addizionaleRegionale = 0
+    store.addizionaleComunale = 0
+    
+    // Non-job: 20000 - inps (20000 * 0.2607 = 5214). Imponibile = 14786.
+    // IRPEF = 14786 * 0.23 = 3400.78
+    expect(store.ordinarioResult.tasse).toBeCloseTo(3400.78, 2)
+
+    // With job RAL = 30000
+    store.hasLavoroDipendente = true
+    store.ralDipendente = 30000
+    
+    // Imponibile PIVA = 20000 - 4800 (INPS GS at 24%) = 15200. Total pooled = 15200 + 30000 = 45200.
+    // IRPEF total = 28000 * 0.23 + (45200 - 28000) * 0.35 = 6440 + 6020 = 12460.00
+    // IRPEF RAL = 28000 * 0.23 + (30000 - 28000) * 0.35 = 6440 + 700 = 7140.00
+    // Net IRPEF on PIVA = 12460 - 7140 = 5320
+    expect(store.ordinarioResult.tasse).toBeCloseTo(5320, 2)
+  })
+
+  it('should apply 24% GS rate for concurrent employment', () => {
+    const store = useTaxStore()
+    store.fatturato = 50000
+    store.advancedMode = true
+    store.hasLavoroDipendente = true
+    
+    // Forfettario GS INPS: 50000 * 0.78 = 39000. Rate = 24%. INPS = 9360.
+    expect(store.forfettarioResult.inps).toBeCloseTo(9360, 2)
+  })
+
+  it('should exempt Artigiani INPS completely for full-time employees', () => {
+    const store = useTaxStore()
+    store.fatturato = 50000
+    store.advancedMode = true
+    store.hasLavoroDipendente = true
+    store.dipendenteFullTime = true
+    
+    store.forfettarioCassa = 'artigiani'
+    store.ordinarioCassa = 'artigiani'
+    store.srlCassa = 'artigiani'
+    store.srlDistribuzione = 'compenso'
+    
+    expect(store.forfettarioResult.inps).toBe(0)
+    expect(store.ordinarioResult.inps).toBe(0)
+    expect(store.srlResult.inps).toBe(0)
+  })
+
+  it('should cap INPS calculations based on custom massimaleInps', () => {
+    const store = useTaxStore()
+    store.fatturato = 200000
+    store.advancedMode = true
+    store.massimaleInps = 100000
+    store.forfettarioCassa = 'gestione_separata'
+    
+    // Forfettario GS: base = 200000 * 0.78 = 156000. Capped at 100000.
+    // INPS = 100000 * 0.2607 = 26070.
+    expect(store.forfettarioResult.inps).toBeCloseTo(26070, 2)
+  })
+
+  it('should increase taxes when local addizionali are modified', () => {
+    const store = useTaxStore()
+    store.fatturato = 50000
+    store.speseDeducibili = 5000
+    store.advancedMode = true
+    store.addizionaleRegionale = 1.73
+    store.addizionaleComunale = 0.8
+    
+    const initialTasse = store.ordinarioResult.tasse
+    
+    store.addizionaleRegionale = 3.33
+    const finalTasse = store.ordinarioResult.tasse
+    
+    expect(finalTasse).toBeGreaterThan(initialTasse)
   })
 })
 

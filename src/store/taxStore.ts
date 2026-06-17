@@ -22,13 +22,32 @@ export const ATECO_CATEGORIES: AtecoCategory[] = [
 export const useTaxStore = defineStore('taxStore', () => {
   // Global Variables
   const fatturato = ref(50000)
-  const expensesMode = ref<'simple' | 'advanced'>('simple')
+  const advancedMode = ref(false) // Sostituisce expensesMode come stato primario
   const speseDeducibili = ref(5000)
   const speseDetraibili = ref(0)
   const atecoCategory = ref('professionisti')
   const atecoCoef = ref(0.78) // default 78% for professionisti
   const mesiParagone = ref(12) // Default a 12 mensilità
 
+  // Lavoro Dipendente Parallelo
+  const hasLavoroDipendente = ref(false)
+  const ralDipendente = ref(0)
+  const dipendenteFullTime = ref(false)
+
+  // Addizionali (IRPEF Ordinario/SRL)
+  const addizionaleRegionale = ref(1.73) // Default (es. media Lombardia)
+  const addizionaleComunale = ref(0.8)   // Default (es. media Milano/Grandi Comuni)
+
+  // Massimale INPS
+  const massimaleInps = ref(119650)      // Default 2025
+
+  // Sostituisce expensesMode mantenendo retrocompatibilità
+  const expensesMode = computed({
+    get: () => advancedMode.value ? 'advanced' : 'simple',
+    set: (val: 'simple' | 'advanced') => {
+      advancedMode.value = (val === 'advanced')
+    }
+  })
 
   // Sync category selection to coefficient
   watch(atecoCategory, (newCatId) => {
@@ -60,7 +79,15 @@ export const useTaxStore = defineStore('taxStore', () => {
       try {
         const parsed = JSON.parse(saved)
         fatturato.value = parsed.fatturato ?? fatturato.value
-        expensesMode.value = parsed.expensesMode ?? expensesMode.value
+        
+        if (parsed.advancedMode !== undefined) {
+          advancedMode.value = parsed.advancedMode
+        } else if (parsed.expensesMode !== undefined) {
+          advancedMode.value = parsed.expensesMode === 'advanced'
+        } else {
+          advancedMode.value = false
+        }
+        
         speseDeducibili.value = parsed.speseDeducibili ?? parsed.spese ?? speseDeducibili.value
         speseDetraibili.value = parsed.speseDetraibili ?? speseDetraibili.value
         atecoCoef.value = parsed.atecoCoef ?? atecoCoef.value
@@ -84,6 +111,14 @@ export const useTaxStore = defineStore('taxStore', () => {
         srlCassa.value = parsed.srlCassa ?? srlCassa.value
         srlRiduzione50.value = parsed.srlRiduzione50 ?? srlRiduzione50.value
         mesiParagone.value = parsed.mesiParagone ?? mesiParagone.value
+
+        // New properties:
+        hasLavoroDipendente.value = parsed.hasLavoroDipendente ?? hasLavoroDipendente.value
+        ralDipendente.value = parsed.ralDipendente ?? ralDipendente.value
+        dipendenteFullTime.value = parsed.dipendenteFullTime ?? dipendenteFullTime.value
+        addizionaleRegionale.value = parsed.addizionaleRegionale ?? addizionaleRegionale.value
+        addizionaleComunale.value = parsed.addizionaleComunale ?? addizionaleComunale.value
+        massimaleInps.value = parsed.massimaleInps ?? massimaleInps.value
       } catch (e) {
         console.error('Failed to load state', e)
       }
@@ -94,16 +129,17 @@ export const useTaxStore = defineStore('taxStore', () => {
 
   watch(
     [
-      fatturato, expensesMode, speseDeducibili, speseDetraibili, atecoCategory, atecoCoef,
+      fatturato, advancedMode, speseDeducibili, speseDetraibili, atecoCategory, atecoCoef,
       forfettarioCassa, forfettarioStartup, forfettarioRiduzione35, forfettarioRiduzione50,
       ordinarioCassa, ordinarioRiduzione50,
       srlDistribuzione, srlCassa, srlRiduzione50,
-      mesiParagone
+      mesiParagone, hasLavoroDipendente, ralDipendente, dipendenteFullTime,
+      addizionaleRegionale, addizionaleComunale, massimaleInps
     ],
     () => {
       localStorage.setItem('taxgrid_state', JSON.stringify({
         fatturato: fatturato.value,
-        expensesMode: expensesMode.value,
+        advancedMode: advancedMode.value,
         speseDeducibili: speseDeducibili.value,
         speseDetraibili: speseDetraibili.value,
         atecoCategory: atecoCategory.value,
@@ -117,7 +153,13 @@ export const useTaxStore = defineStore('taxStore', () => {
         srlDistribuzione: srlDistribuzione.value,
         srlCassa: srlCassa.value,
         srlRiduzione50: srlRiduzione50.value,
-        mesiParagone: mesiParagone.value
+        mesiParagone: mesiParagone.value,
+        hasLavoroDipendente: hasLavoroDipendente.value,
+        ralDipendente: ralDipendente.value,
+        dipendenteFullTime: dipendenteFullTime.value,
+        addizionaleRegionale: addizionaleRegionale.value,
+        addizionaleComunale: addizionaleComunale.value,
+        massimaleInps: massimaleInps.value
       }))
     },
     { deep: true }
@@ -127,23 +169,34 @@ export const useTaxStore = defineStore('taxStore', () => {
   const forfettarioResult = computed(() => {
     const imponibile = fatturato.value * atecoCoef.value
     let inps = 0
+    
+    const hasJob = advancedMode.value && hasLavoroDipendente.value
+    const isFullTime = hasJob && dipendenteFullTime.value
+    const capInps = advancedMode.value ? massimaleInps.value : 119650
+    
     if (forfettarioCassa.value === 'gestione_separata') {
-      inps = imponibile * 0.2607
+      const aliquotaGs = hasJob ? 0.24 : 0.2607
+      const imponibileInps = Math.min(imponibile, capInps)
+      inps = imponibileInps * aliquotaGs
     } else {
-      const inpsMinimale = 4208
-      const redditoEccedente = Math.max(imponibile - 17504, 0)
-      const inpsEccedente = redditoEccedente * 0.24
-      inps = inpsMinimale + inpsEccedente
+      if (isFullTime) {
+        inps = 0
+      } else {
+        const imponibileInps = Math.min(imponibile, capInps)
+        const inpsMinimale = 4208
+        const redditoEccedente = Math.max(imponibileInps - 17504, 0)
+        const inpsEccedente = redditoEccedente * 0.24
+        inps = inpsMinimale + inpsEccedente
 
-      if (forfettarioRiduzione35.value) {
-        inps = inps * 0.65
-      } else if (forfettarioRiduzione50.value) {
-        inps = inps * 0.50
+        if (forfettarioRiduzione35.value) {
+          inps = inps * 0.65
+        } else if (forfettarioRiduzione50.value) {
+          inps = inps * 0.50
+        }
       }
     }
     
-    // Tasse (Contributi previdenziali sono deducibili dal reddito imponibile l'anno successivo,
-    // per l'MVP li deduciamo direttamente nell'anno corrente per semplicità)
+    // Tasse
     const imponibileNetto = Math.max(imponibile - inps, 0)
     const taxRate = forfettarioStartup.value ? 0.05 : 0.15
     const tasse = imponibileNetto * taxRate
@@ -158,36 +211,52 @@ export const useTaxStore = defineStore('taxStore', () => {
   const ordinarioResult = computed(() => {
     const imponibileBase = Math.max(fatturato.value - speseDeducibili.value, 0)
     let inps = 0
+    
+    const hasJob = advancedMode.value && hasLavoroDipendente.value
+    const isFullTime = hasJob && dipendenteFullTime.value
+    const capInps = advancedMode.value ? massimaleInps.value : 119650
+    
     if (ordinarioCassa.value === 'gestione_separata') {
-      inps = imponibileBase * 0.2607
+      const aliquotaGs = hasJob ? 0.24 : 0.2607
+      const imponibileInps = Math.min(imponibileBase, capInps)
+      inps = imponibileInps * aliquotaGs
     } else {
-      const inpsMinimale = 4208
-      const redditoEccedente = Math.max(imponibileBase - 17504, 0)
-      const inpsEccedente = redditoEccedente * 0.24
-      inps = inpsMinimale + inpsEccedente
+      if (isFullTime) {
+        inps = 0
+      } else {
+        const imponibileInps = Math.min(imponibileBase, capInps)
+        const inpsMinimale = 4208
+        const redditoEccedente = Math.max(imponibileInps - 17504, 0)
+        const inpsEccedente = redditoEccedente * 0.24
+        inps = inpsMinimale + inpsEccedente
 
-      if (ordinarioRiduzione50.value) {
-        inps = inps * 0.50
+        if (ordinarioRiduzione50.value) {
+          inps = inps * 0.50
+        }
       }
     }
 
-    const imponibileFiscale = Math.max(imponibileBase - inps, 0)
-    // Simplified IRPEF Scaglioni 2024
-    let irpefLorda = 0
-    if (imponibileFiscale <= 28000) {
-      irpefLorda = imponibileFiscale * 0.23
-    } else if (imponibileFiscale <= 50000) {
-      irpefLorda = 28000 * 0.23 + (imponibileFiscale - 28000) * 0.35
-    } else {
-      irpefLorda = 28000 * 0.23 + 22000 * 0.35 + (imponibileFiscale - 50000) * 0.43
-    }
+    const imponibilePivaFiscale = Math.max(imponibileBase - inps, 0)
+    const ral = hasJob ? ralDipendente.value : 0
+    const imponibileTotale = imponibilePivaFiscale + ral
 
-    const scontoDetraibili = expensesMode.value === 'advanced' ? speseDetraibili.value * 0.19 : 0
-    const irpefNetta = Math.max(irpefLorda - scontoDetraibili, 0)
+    const irpefCumulativa = calcolaIrpefLorda(imponibileTotale)
+    const irpefGiaPagataSuRal = ral > 0 ? calcolaIrpefLorda(ral) : 0
+    const irpefLordaImpresa = irpefCumulativa - irpefGiaPagataSuRal
 
-    const netto = fatturato.value - speseDeducibili.value - inps - irpefNetta
+    const scontoDetraibili = advancedMode.value ? speseDetraibili.value * 0.19 : 0
+    const irpefNetta = Math.max(irpefLordaImpresa - scontoDetraibili, 0)
+
+    const addizionaleRegionaleVal = advancedMode.value ? addizionaleRegionale.value : 0
+    const addizionaleComunaleVal = advancedMode.value ? addizionaleComunale.value : 0
+    const tasseRegionali = imponibilePivaFiscale * (addizionaleRegionaleVal / 100)
+    const tasseComunali = imponibilePivaFiscale * (addizionaleComunaleVal / 100)
+
+    const tasseTotali = irpefNetta + tasseRegionali + tasseComunali
+
+    const netto = fatturato.value - speseDeducibili.value - inps - tasseTotali
     const nettoMensile = netto / mesiParagone.value
-    return { inps, tasse: irpefNetta, netto, nettoMensile }
+    return { inps, tasse: tasseTotali, netto, nettoMensile }
   })
 
   // Helper: Calcolo IRPEF Lorda (Scaglioni 2024)
@@ -211,73 +280,114 @@ export const useTaxStore = defineStore('taxStore', () => {
     const utileLordoOperativo = Math.max(fatturato.value - speseDeducibili.value - costiFissiSrl, 0);
 
     let tasseSrl = 0;
-    let inpsTotaleSostenutoDaUtente = 0; // Costo visivo: ciò che esce dalle sue tasche o dalla sua azienda
+    let inpsTotaleSostenutoDaUtente = 0;
     let tasseTotali = 0;
     let netto = 0;
 
+    const hasJob = advancedMode.value && hasLavoroDipendente.value;
+    const isFullTime = hasJob && dipendenteFullTime.value;
+    const ral = hasJob ? ralDipendente.value : 0;
+    const capInps = advancedMode.value ? massimaleInps.value : 119650;
+
     if (srlCassa.value === 'gestione_separata') {
       if (srlDistribuzione.value === 'compenso') {
-        // Il budget operativo deve coprire il compenso lordo + i 2/3 di INPS a carico azienda
-        // Aliquota INPS totale Co.co.co = 33.59% (22.39% azienda, 11.20% amministratore)
-        const compensoLordo = utileLordoOperativo / 1.2239;
-        const inpsAzienda = compensoLordo * 0.2239;
-        const inpsAmministratore = compensoLordo * 0.1120;
+        const aliquotaGsAzienda = hasJob ? 0.16 : 0.2239;
+        const aliquotaGsAmministratore = hasJob ? 0.08 : 0.1120;
+        
+        const compensoLordo = utileLordoOperativo / (1 + aliquotaGsAzienda);
+        
+        const imponibileInps = Math.min(compensoLordo, capInps);
+        const inpsAzienda = imponibileInps * aliquotaGsAzienda;
+        const inpsAmministratore = imponibileInps * aliquotaGsAmministratore;
         
         const imponibileFiscale = Math.max(compensoLordo - inpsAmministratore, 0);
-        const irpefLorda = calcolaIrpefLorda(imponibileFiscale);
-        const detrazioni = calcolaDetrazioniDipendente(imponibileFiscale);
-        const scontoDetraibili = expensesMode.value === 'advanced' ? speseDetraibili.value * 0.19 : 0
-        const irpefNetta = Math.max(irpefLorda - detrazioni - scontoDetraibili, 0);
         
-        // Per un confronto equo nella dashboard, mostriamo l'INPS totale o solo quello trattenuto.
-        // L'utente percepisce il carico fiscale, quindi INPS = inpsAzienda + inpsAmministratore
+        const imponibileFiscaleTotal = imponibileFiscale + ral;
+        const irpefLordaTotale = calcolaIrpefLorda(imponibileFiscaleTotal);
+        const irpefGiaPagataSuRal = ral > 0 ? calcolaIrpefLorda(ral) : 0;
+        const irpefLordaImpresa = irpefLordaTotale - irpefGiaPagataSuRal;
+
+        const detrazioniTotale = calcolaDetrazioniDipendente(imponibileFiscaleTotal);
+        const detrazioniSuRal = ral > 0 ? calcolaDetrazioniDipendente(ral) : 0;
+        const detrazioniImpresa = Math.max(detrazioniTotale - detrazioniSuRal, 0);
+
+        const scontoDetraibili = advancedMode.value ? speseDetraibili.value * 0.19 : 0;
+        const irpefNetta = Math.max(irpefLordaImpresa - detrazioniImpresa - scontoDetraibili, 0);
+        
+        const addizionaleRegionaleVal = advancedMode.value ? addizionaleRegionale.value : 0;
+        const addizionaleComunaleVal = advancedMode.value ? addizionaleComunale.value : 0;
+        const tasseRegionali = imponibileFiscale * (addizionaleRegionaleVal / 100);
+        const tasseComunali = imponibileFiscale * (addizionaleComunaleVal / 100);
+
         inpsTotaleSostenutoDaUtente = inpsAzienda + inpsAmministratore; 
-        tasseTotali = irpefNetta;
-        netto = compensoLordo - inpsAmministratore - irpefNetta;
+        tasseTotali = irpefNetta + tasseRegionali + tasseComunali;
+        netto = compensoLordo - inpsAmministratore - tasseTotali;
       } else {
-        // Distribuzione Utili: IRES 24% + IRAP ~3.9% sull'utile operativo
         tasseSrl = utileLordoOperativo * 0.279;
         const utileNetto = utileLordoOperativo - tasseSrl;
-        // Tassazione soci dividendi (26%)
         const tasseDividendi = utileNetto * 0.26;
         
-        inpsTotaleSostenutoDaUtente = 0; // Gli utili non scontano INPS in GS
+        inpsTotaleSostenutoDaUtente = 0;
         tasseTotali = tasseSrl + tasseDividendi;
         netto = utileNetto - tasseDividendi;
       }
     } else { // artigiani
       if (srlDistribuzione.value === 'compenso') {
         const compensoLordo = utileLordoOperativo;
-        const inpsMinimale = 4208
-        const redditoEccedente = Math.max(compensoLordo - 17504, 0)
-        const inpsEccedente = redditoEccedente * 0.24
-        let inps = inpsMinimale + inpsEccedente
-        if (srlRiduzione50.value) {
-          inps = inps * 0.50
+        let inps = 0;
+        
+        if (isFullTime) {
+          inps = 0;
+        } else {
+          const imponibileInps = Math.min(compensoLordo, capInps);
+          const inpsMinimale = 4208;
+          const redditoEccedente = Math.max(imponibileInps - 17504, 0);
+          const inpsEccedente = redditoEccedente * 0.24;
+          inps = inpsMinimale + inpsEccedente;
+          if (srlRiduzione50.value) {
+            inps = inps * 0.50;
+          }
         }
 
         const imponibileFiscale = Math.max(compensoLordo - inps, 0);
-        const irpefLorda = calcolaIrpefLorda(imponibileFiscale);
-        const detrazioni = calcolaDetrazioniDipendente(imponibileFiscale);
-        const scontoDetraibili = expensesMode.value === 'advanced' ? speseDetraibili.value * 0.19 : 0
-        const irpefNetta = Math.max(irpefLorda - detrazioni - scontoDetraibili, 0);
+        
+        const imponibileFiscaleTotal = imponibileFiscale + ral;
+        const irpefLordaTotale = calcolaIrpefLorda(imponibileFiscaleTotal);
+        const irpefGiaPagataSuRal = ral > 0 ? calcolaIrpefLorda(ral) : 0;
+        const irpefLordaImpresa = irpefLordaTotale - irpefGiaPagataSuRal;
+
+        const detrazioniTotale = calcolaDetrazioniDipendente(imponibileFiscaleTotal);
+        const detrazioniSuRal = ral > 0 ? calcolaDetrazioniDipendente(ral) : 0;
+        const detrazioniImpresa = Math.max(detrazioniTotale - detrazioniSuRal, 0);
+
+        const scontoDetraibili = advancedMode.value ? speseDetraibili.value * 0.19 : 0;
+        const irpefNetta = Math.max(irpefLordaImpresa - detrazioniImpresa - scontoDetraibili, 0);
+
+        const addizionaleRegionaleVal = advancedMode.value ? addizionaleRegionale.value : 0;
+        const addizionaleComunaleVal = advancedMode.value ? addizionaleComunale.value : 0;
+        const tasseRegionali = imponibileFiscale * (addizionaleRegionaleVal / 100);
+        const tasseComunali = imponibileFiscale * (addizionaleComunaleVal / 100);
 
         inpsTotaleSostenutoDaUtente = inps;
-        tasseTotali = irpefNetta;
-        netto = compensoLordo - inps - irpefNetta;
+        tasseTotali = irpefNetta + tasseRegionali + tasseComunali;
+        netto = compensoLordo - inps - tasseTotali;
       } else {
-        // Distribuzione Utili: IRES 24% + IRAP ~3.9% sull'utile operativo
         tasseSrl = utileLordoOperativo * 0.279;
         const utileNetto = utileLordoOperativo - tasseSrl;
-        // Tassazione soci dividendi (26%)
         const tasseDividendi = utileNetto * 0.26;
 
-        const inpsMinimale = 4208
-        const redditoEccedente = Math.max(utileLordoOperativo - 17504, 0)
-        const inpsEccedente = redditoEccedente * 0.24
-        let inps = inpsMinimale + inpsEccedente
-        if (srlRiduzione50.value) {
-          inps = inps * 0.50
+        let inps = 0;
+        if (isFullTime) {
+          inps = 0;
+        } else {
+          const imponibileInps = Math.min(utileLordoOperativo, capInps);
+          const inpsMinimale = 4208;
+          const redditoEccedente = Math.max(imponibileInps - 17504, 0);
+          const inpsEccedente = redditoEccedente * 0.24;
+          inps = inpsMinimale + inpsEccedente;
+          if (srlRiduzione50.value) {
+            inps = inps * 0.50;
+          }
         }
 
         inpsTotaleSostenutoDaUtente = inps;
@@ -286,7 +396,7 @@ export const useTaxStore = defineStore('taxStore', () => {
       }
     }
 
-    const nettoMensile = netto / mesiParagone.value
+    const nettoMensile = netto / mesiParagone.value;
     return { 
       inps: inpsTotaleSostenutoDaUtente, 
       tasse: tasseTotali, 
@@ -327,13 +437,14 @@ export const useTaxStore = defineStore('taxStore', () => {
     }
   })
 
-
   return {
-    fatturato, expensesMode, speseDeducibili, speseDetraibili, atecoCategory, atecoCoef, ATECO_CATEGORIES,
+    fatturato, expensesMode, advancedMode, speseDeducibili, speseDetraibili, atecoCategory, atecoCoef, ATECO_CATEGORIES,
     forfettarioCassa, forfettarioStartup, forfettarioRiduzione35, forfettarioRiduzione50,
     ordinarioCassa, ordinarioRiduzione50,
     srlDistribuzione, srlCassa, srlRiduzione50,
     forfettarioResult, ordinarioResult, srlResult,
-    mesiParagone
+    mesiParagone,
+    hasLavoroDipendente, ralDipendente, dipendenteFullTime,
+    addizionaleRegionale, addizionaleComunale, massimaleInps
   }
 })
