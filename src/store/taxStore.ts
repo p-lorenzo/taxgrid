@@ -405,6 +405,44 @@ export const useTaxStore = defineStore('taxStore', () => {
     }
   })
 
+  // Calculations: Dipendente
+  const dipendenteResult = computed(() => {
+    // Fatturato = Costo Aziendale totale (RAL + Contributi INPS Datore)
+    // Assumiamo: INPS Datore ~ 23.81%, INPS Dipendente ~ 9.19%
+    const aliquotaInpsDatore = 0.2381;
+    const aliquotaInpsDipendente = 0.0919;
+
+    const ral = fatturato.value / (1 + aliquotaInpsDatore);
+    const inpsDatore = ral * aliquotaInpsDatore;
+    const inpsDipendente = ral * aliquotaInpsDipendente;
+    
+    const imponibileFiscale = Math.max(ral - inpsDipendente, 0);
+    const irpefLorda = calcolaIrpefLorda(imponibileFiscale);
+    const detrazioni = calcolaDetrazioniDipendente(imponibileFiscale);
+    const irpefNetta = Math.max(irpefLorda - detrazioni, 0);
+
+    const addizionaleRegionaleVal = advancedMode.value ? addizionaleRegionale.value : 0;
+    const addizionaleComunaleVal = advancedMode.value ? addizionaleComunale.value : 0;
+    const tasseRegionali = imponibileFiscale * (addizionaleRegionaleVal / 100);
+    const tasseComunali = imponibileFiscale * (addizionaleComunaleVal / 100);
+
+    const tasseTotali = irpefNetta + tasseRegionali + tasseComunali;
+    const inpsTotale = inpsDatore + inpsDipendente;
+    
+    const netto = ral - inpsDipendente - tasseTotali;
+    const nettoMensile = netto / mesiParagone.value;
+
+    return {
+      inps: inpsTotale,
+      inpsDipendente,
+      inpsDatore,
+      ral,
+      tasse: tasseTotali,
+      netto,
+      nettoMensile
+    }
+  })
+
   // Watchers for mutual exclusivity and resets
   watch(forfettarioCassa, (newCassa) => {
     if (newCassa === 'gestione_separata') {
@@ -442,7 +480,7 @@ export const useTaxStore = defineStore('taxStore', () => {
     forfettarioCassa, forfettarioStartup, forfettarioRiduzione35, forfettarioRiduzione50,
     ordinarioCassa, ordinarioRiduzione50,
     srlDistribuzione, srlCassa, srlRiduzione50,
-    forfettarioResult, ordinarioResult, srlResult,
+    forfettarioResult, ordinarioResult, srlResult, dipendenteResult,
     mesiParagone,
     hasLavoroDipendente, ralDipendente, dipendenteFullTime,
     addizionaleRegionale, addizionaleComunale, massimaleInps
