@@ -6,6 +6,8 @@
 
 **Status**: COMPLETE
 
+## Status: COMPLETE
+
 **Input**: User description: "invece che avere il coefficente di redditivitá ateco tra i parametri globali, permettiamo di scegliere il codice ateco da un dropdown e in base al codice ateco scelto impostiamo il coefficente di redditifvitá per il forfettario"
 
 ## User Scenarios & Testing *(mandatory)*
