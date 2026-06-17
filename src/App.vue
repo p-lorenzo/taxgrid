@@ -574,7 +574,7 @@ const gridColsClass = computed(() => {
                 </p>
               </div>
 
-              <div class="flex justify-between text-sm py-1 border-b border-gray-100 dark:border-gray-700">
+              <div class="flex justify-between text-sm py-1">
                 <span class="text-gray-500 dark:text-gray-400">RAL Calcolata</span>
                 <span class="font-medium text-gray-900 dark:text-white">{{ formatCurrency(store.dipendenteResult.ral) }}</span>
               </div>
