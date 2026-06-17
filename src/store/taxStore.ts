@@ -137,44 +137,62 @@ export const useTaxStore = defineStore('taxStore', () => {
     return { inps, tasse, netto }
   })
 
+// Helper: Calcolo IRPEF Lorda (Scaglioni 2024)
+  function calcolaIrpefLorda(imponibile: number) {
+    if (imponibile <= 28000) return imponibile * 0.23;
+    if (imponibile <= 50000) return (28000 * 0.23) + ((imponibile - 28000) * 0.35);
+    return (28000 * 0.23) + (22000 * 0.35) + ((imponibile - 50000) * 0.43);
+  }
+
+  // Helper: Detrazioni Lavoro Dipendente/Assimilato
+  function calcolaDetrazioniDipendente(imponibile: number) {
+    if (imponibile <= 15000) return 1955;
+    if (imponibile <= 28000) return 1910 + 1190 * ((28000 - imponibile) / 13000);
+    if (imponibile <= 50000) return 1910 * ((50000 - imponibile) / 22000);
+    return 0;
+  }
+
   // Calculations: SRL
   const srlResult = computed(() => {
-    // Semplificazione per MVP
-    const utileLordo = Math.max(fatturato.value - spese.value, 0)
-    let tasseSrl = 0
-    let inpsAmministratore = 0
-    let irpefAmministratore = 0
-    let netto = 0
-    let tasseTotali = 0
+    const costiFissiSrl = 4000;
+    const utileLordoOperativo = Math.max(fatturato.value - spese.value - costiFissiSrl, 0);
+
+    let tasseSrl = 0;
+    let inpsTotaleSostenutoDaUtente = 0; // Costo visivo: ciò che esce dalle sue tasche o dalla sua azienda
+    let tasseTotali = 0;
+    let netto = 0;
 
     if (srlDistribuzione.value === 'compenso') {
-      const compenso = utileLordo
-      inpsAmministratore = compenso * 0.2607
-      const imponibileFiscale = Math.max(compenso - inpsAmministratore, 0)
+      // Il budget operativo deve coprire il compenso lordo + i 2/3 di INPS a carico azienda
+      // Aliquota INPS totale Co.co.co = 33.59% (22.39% azienda, 11.20% amministratore)
+      const compensoLordo = utileLordoOperativo / 1.2239;
+      const inpsAzienda = compensoLordo * 0.2239;
+      const inpsAmministratore = compensoLordo * 0.1120;
       
-      if (imponibileFiscale <= 28000) {
-        irpefAmministratore = imponibileFiscale * 0.23
-      } else if (imponibileFiscale <= 50000) {
-        irpefAmministratore = 28000 * 0.23 + (imponibileFiscale - 28000) * 0.35
-      } else {
-        irpefAmministratore = 28000 * 0.23 + 22000 * 0.35 + (imponibileFiscale - 50000) * 0.43
-      }
+      const imponibileFiscale = Math.max(compensoLordo - inpsAmministratore, 0);
+      const irpefLorda = calcolaIrpefLorda(imponibileFiscale);
+      const detrazioni = calcolaDetrazioniDipendente(imponibileFiscale);
+      const irpefNetta = Math.max(irpefLorda - detrazioni, 0);
       
-      tasseTotali = irpefAmministratore
-      netto = utileLordo - inpsAmministratore - irpefAmministratore
+      // Per un confronto equo nella dashboard, mostriamo l'INPS totale o solo quello trattenuto.
+      // L'utente percepisce il carico fiscale, quindi INPS = inpsAzienda + inpsAmministratore
+      inpsTotaleSostenutoDaUtente = inpsAzienda + inpsAmministratore; 
+      tasseTotali = irpefNetta;
+      netto = compensoLordo - inpsAmministratore - irpefNetta;
     } else {
-      // IRES (24%) + IRAP (~3.9%)
-      tasseSrl = utileLordo * 0.279
-      const utileNetto = utileLordo - tasseSrl
-      // Tassazione soci distribuzione dividendi (26%)
-      const tasseDividendi = utileNetto * 0.26
+      // Distribuzione Utili: IRES 24% + IRAP ~3.9% sull'utile operativo
+      tasseSrl = utileLordoOperativo * 0.279;
+      const utileNetto = utileLordoOperativo - tasseSrl;
+      // Tassazione soci dividendi (26%)
+      const tasseDividendi = utileNetto * 0.26;
       
-      tasseTotali = tasseSrl + tasseDividendi
-      netto = utileNetto - tasseDividendi
+      inpsTotaleSostenutoDaUtente = 0; // Gli utili non scontano INPS in GS
+      tasseTotali = tasseSrl + tasseDividendi;
+      netto = utileNetto - tasseDividendi;
     }
 
     return { 
-      inps: inpsAmministratore, 
+      inps: inpsTotaleSostenutoDaUtente, 
       tasse: tasseTotali, 
       netto 
     }

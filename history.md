@@ -2,3 +2,4 @@
 
 - **2026-06-17**: Added ATECO category dropdown selection replacing the raw numeric input coefficient.
 - **2026-06-17**: Updated color scheme to uniform dark blue and yellow (#e2af0d) across all tax regimes.
+- **2026-06-17**: Implemented correct tax and INPS calculation logic for S.R.L. administrator compensation strategy.
