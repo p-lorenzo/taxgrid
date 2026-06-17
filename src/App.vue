@@ -4,6 +4,7 @@ import { Switch } from '@headlessui/vue'
 import Footer from './components/Footer.vue'
 import ComparisonChart from './components/ComparisonChart.vue'
 import CalculationBreakdown from './components/CalculationBreakdown.vue'
+import ThemeToggle from './components/ThemeToggle.vue'
 import { computed, ref } from 'vue'
 
 const store = useTaxStore()
@@ -67,13 +68,16 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
       </div>
 
       <!-- Header -->
-      <header class="mb-12 text-center sm:text-left print:hidden">
-        <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-700 via-blue-500 to-[#e2af0d] dark:from-blue-400 dark:via-blue-300 dark:to-[#e2af0d] mb-4">
-          TaxGrid
-        </h1>
-        <p class="text-lg text-gray-600 dark:text-gray-400 max-w-2xl">
-          Simula e compara in tempo reale i regimi fiscali italiani per scoprire il tuo vero netto in tasca.
-        </p>
+      <header class="mb-12 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-center sm:text-left print:hidden">
+        <div>
+          <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-700 via-blue-500 to-[#e2af0d] dark:from-blue-400 dark:via-blue-300 dark:to-[#e2af0d] mb-4">
+            TaxGrid
+          </h1>
+          <p class="text-lg text-gray-600 dark:text-gray-400 max-w-2xl">
+            Simula e compara in tempo reale i regimi fiscali italiani per scoprire il tuo vero netto in tasca.
+          </p>
+        </div>
+        <ThemeToggle />
       </header>
 
       <!-- Global Controls -->

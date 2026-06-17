@@ -1,5 +1,7 @@
 # Spec 12: Toggle Manuale Tema Chiaro / Scuro
 
+## Status: COMPLETE
+
 ## Obiettivo
 Fornire all'utente un controllo esplicito sull'aspetto visivo dell'app (tema chiaro o scuro), slegandolo dalle preferenze di sistema se lo desidera.
 
@@ -16,3 +18,5 @@ Fornire all'utente un controllo esplicito sull'aspetto visivo dell'app (tema chi
 - Aggiornare `tailwind.config.js` assicurandosi che sia configurato `darkMode: 'class'` invece di `media` (che di default risponde solo all'OS).
 - Mantenere la prevenzione del FOUC (Flash of Unstyled Content): inserire se possibile un breve snippet `<script>` nativo dentro `index.html` che valuti la preferenza da localStorage ancor prima di montare l'app Vue.
 - Implementare un piccolo composable Vue (`useDarkMode.ts`) o gestire lo stato globale dentro Pinia per reattività.
+
+<!-- NR_OF_TRIES: 1 -->
