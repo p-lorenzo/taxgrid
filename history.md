@@ -20,3 +20,5 @@
 - **2026-06-17**: Implemented URL state sharing (deep linking) with base64-encoded `?data=` query parameter serialization/deserialization, buildShareUrl() in taxStore, "Condividi Simulazione" button with clipboard copy + toast, and updated PrintReport QR code to point to the serialized simulation URL.
 - **2026-06-17**: Added Fatturato/RAL toggle on global input, dynamic label, RAL-mode logic (direct RAL for Dipendente, RAL × 1.2381 for P.IVA cards), Trattamento Integrativo calculation, and dynamic explanatory text in Dipendente card.
 - **2026-06-17**: Extended speseDeducibili impact to Forfettario and Dipendente regimes: spese subtracted post-tax from netto (with floor at €0), added intermediate "Netto Fiscale" / "Spese (non deducibili)" / "Netto Finale" breakdown voices, and updated ComparisonChart to show spese segments for all regimes.
+- **2026-06-18**: Implemented PWA install prompt banner (PwaInstallPrompt) with custom prompt logic for Android/Desktop, step-by-step instructions for iOS, and 14-day dismissal cooldown using localStorage.
+
