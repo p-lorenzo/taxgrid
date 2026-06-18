@@ -6,6 +6,8 @@
 
 **Status**: COMPLETE
 
+## Status: COMPLETE
+
 **Input**: User report: "quando noi alziamo le spese, si abbassano i ricavi per regime ordinario e srl ma non per il regime forfettario, perché effettivamente quelle spese il forfettario non le registra come spese di impresa. eppure per un paragone corretto se abbiamo delle spese, per il regime ordinario e srl quelle spese le deduci mentre per forfettario no, quindi, o le sottraiamo dal netto nel forfettario, oppure aggiungiamo una nuova voce nel forfettario per mostrare quanto sarebbero al netto delle spese i ricavi finali, idem per il dipendente"
 
 ## 1. Analisi

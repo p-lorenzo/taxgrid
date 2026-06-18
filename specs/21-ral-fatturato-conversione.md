@@ -6,6 +6,8 @@
 
 **Status**: COMPLETE
 
+## Status: COMPLETE
+
 **Input**: User request: "quando clicchiamo sul toggle tra fatturato e ral, facciamo la conversione on the fly del valore, per esempio: se ho il toggle su RAL e c'é impostato 42000, appena clicco sul toggle e lo faccio diventare fatturato, il valore automaticamente diventa l'equivalente in fatturato (55k circa)"
 
 **Dependency**: Richiede il toggle Fatturato/RAL della spec `19-dipendente-ral-toggle`.

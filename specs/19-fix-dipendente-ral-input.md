@@ -6,6 +6,8 @@
 
 **Status**: COMPLETE
 
+## Status: COMPLETE
+
 **Input**: User report: "il calcolo matematico del dipendente non mi torna [...] io ho una ral di 42000 e su 13 mensilitá il mio netto é circa 2300E al mese, su taxgrid invece risulta 1866,97, mi sembra bassissimo". L'utente chiede un toggle sull'input globale per inserire RAL invece di fatturato, e l'aggiunta del Trattamento Integrativo.
 
 ## 1. Problema

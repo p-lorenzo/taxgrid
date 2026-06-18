@@ -4,7 +4,9 @@
 
 **Created**: 2026-06-18
 
-**Status**: INCOMPLETE
+**Status**: COMPLETE
+
+## Status: COMPLETE
 
 **Input**: User request: "App PWA (dovrebbe già esistere la spec forse ma non mi sembra sia stata implementata) vorrei che quando apri il sito da mobile, ti venga proposto di 'aggiungerlo alla home screen' in modo che puoi usarlo anche offline"
 

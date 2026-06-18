@@ -12,6 +12,7 @@ import CardDipendente from './components/CardDipendente.vue'
 import InfoTooltip from './components/InfoTooltip.vue'
 import draggable from 'vuedraggable'
 import PrintReport from './components/PrintReport.vue'
+import PwaInstallPrompt from './components/PwaInstallPrompt.vue'
 import { computed, ref } from 'vue'
 
 const store = useTaxStore()
@@ -503,5 +504,8 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
         Link copiato! Ora puoi condividere la simulazione.
       </div>
     </Transition>
+
+    <!-- PWA Install Prompt -->
+    <PwaInstallPrompt />
   </div>
 </template>
