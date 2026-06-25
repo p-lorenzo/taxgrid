@@ -17,6 +17,18 @@
           <p class="text-gray-500 dark:text-gray-400">
             Realizzato con ❤️ da <span class="font-semibold text-gray-800 dark:text-gray-200">Lorenzo Pesce</span>.
           </p>
+
+          <a
+            href="https://ko-fi.com/lorenzopesce"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-[#e2af0d]/40 bg-[#fff7d6] px-4 py-2.5 text-sm font-semibold text-gray-900 shadow-sm transition-all duration-250 hover:-translate-y-0.5 hover:border-[#e2af0d] hover:bg-[#ffeaa3] hover:shadow-md dark:border-[#e2af0d]/50 dark:bg-[#2f2711] dark:text-[#fff4c2] dark:hover:bg-[#3d320f]"
+            aria-label="Offri un caffè a Lorenzo Pesce su Ko-fi"
+          >
+            <span class="text-lg" aria-hidden="true">☕</span>
+            <span>Buy me a coffee su Ko-fi</span>
+            <span class="text-base" aria-hidden="true">💛</span>
+          </a>
           
           <!-- Social Icons / Links -->
           <div class="flex items-center justify-center md:justify-start space-x-4 pt-1">
