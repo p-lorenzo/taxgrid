@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Dialog, DialogPanel, DialogTitle, TransitionRoot, TransitionChild } from '@headlessui/vue'
 import type { BreakdownStep } from '../store/taxStore'
+import KoFiSupport from './KoFiSupport.vue'
 
 defineProps<{
   isOpen: boolean
@@ -147,6 +148,8 @@ const getOperatorColorClass = (op?: string) => {
                   </button>
                 </div>
               </div>
+
+              <KoFiSupport variant="compact" />
 
             </DialogPanel>
           </TransitionChild>

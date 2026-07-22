@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
+import { nextTick } from 'vue'
 import App from './App.vue'
 
 // Mock localStorage for node environment
@@ -66,5 +67,27 @@ describe('App Component', () => {
     expect((wrapper.vm as any).isBreakdownOpen).toBe(true)
     expect((wrapper.vm as any).breakdownTitle).toBe('Regime Forfettario')
     expect((wrapper.vm as any).breakdownSteps.length).toBeGreaterThan(0)
+  })
+
+  it('shows contextual Ko-fi links with safe external-link attributes', async () => {
+    const wrapper = mount(App, { attachTo: document.body })
+
+    const resultsCta = wrapper.get('[data-testid="kofi-support"]')
+    expect(resultsCta.attributes('href')).toBe('https://ko-fi.com/lorenzopesce')
+    expect(resultsCta.attributes('target')).toBe('_blank')
+    expect(resultsCta.attributes('rel')).toBe('noopener noreferrer')
+    expect(resultsCta.text()).toContain('Offrimi un caffè')
+
+    const breakdownBtn = wrapper.findAll('button').find(button => button.text().includes('Vedi dettaglio calcolo'))
+    await breakdownBtn!.trigger('click')
+    await nextTick()
+
+    const contextualLinks = Array.from(document.body.querySelectorAll<HTMLAnchorElement>('[data-testid="kofi-support"]'))
+    const breakdownCta = contextualLinks.find(link => link.textContent?.includes('Sostieni TaxGrid su Ko-fi'))
+    expect(breakdownCta).toBeDefined()
+    expect(breakdownCta?.href).toBe('https://ko-fi.com/lorenzopesce')
+    expect(breakdownCta?.rel).toBe('noopener noreferrer')
+
+    wrapper.unmount()
   })
 })
