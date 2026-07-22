@@ -18,7 +18,7 @@ export interface PersonalTaxPosition {
   netIrpef: number
   regionalTax: number
   municipalTax: number
-  treatmentIntegrativo: number
+  trattamentoIntegrativo: number
   totalTaxes: number
 }
 
@@ -91,8 +91,7 @@ export function calculatePersonalTaxPosition(input: PersonalTaxPositionInput): P
     netIrpef,
     regionalTax,
     municipalTax,
-    treatmentIntegrativo,
+    trattamentoIntegrativo: treatmentIntegrativo,
     totalTaxes: netIrpef + regionalTax + municipalTax - treatmentIntegrativo,
   }
 }
-
