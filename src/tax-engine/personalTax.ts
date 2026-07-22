@@ -70,7 +70,8 @@ export function calculatePersonalTaxPosition(input: PersonalTaxPositionInput): P
   const otherIncome = Math.max(input.otherTaxableIncome ?? 0, 0)
   const taxableIncome = employeeIncome + otherIncome
   const grossIrpef = calculateProgressiveTax(taxableIncome)
-  const employeeTaxCredit = Math.min(calculateEmployeeTaxCredit(taxableIncome, employeeIncome > 0), grossIrpef)
+  const statutoryEmployeeTaxCredit = calculateEmployeeTaxCredit(taxableIncome, employeeIncome > 0)
+  const employeeTaxCredit = Math.min(statutoryEmployeeTaxCredit, grossIrpef)
   const availableAfterEmployeeCredit = Math.max(grossIrpef - employeeTaxCredit, 0)
   const genericTaxCredits = Math.min(Math.max(input.genericTaxCredits ?? 0, 0), availableAfterEmployeeCredit)
   const netIrpef = Math.max(grossIrpef - employeeTaxCredit - genericTaxCredits, 0)
@@ -79,7 +80,7 @@ export function calculatePersonalTaxPosition(input: PersonalTaxPositionInput): P
   const treatmentIntegrativo = calculateTreatmentIntegrativo(
     taxableIncome,
     employeeIncome,
-    employeeTaxCredit,
+    statutoryEmployeeTaxCredit,
     input.eligibleTreatmentDeductions,
   )
 

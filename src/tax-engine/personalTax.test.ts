@@ -20,4 +20,10 @@ describe('Personal tax position 2026', () => {
     expect(position.trattamentoIntegrativo).toBe(1_200)
     expect(position.totalTaxes).toBe(position.netIrpef - 1_200)
   })
+
+  it('does not recognize the treatment below the statutory capacity threshold', () => {
+    const position = calculatePersonalTaxPosition({ employeeTaxableIncome: 5_000 })
+    expect(position.employeeTaxCredit).toBe(position.grossIrpef)
+    expect(position.trattamentoIntegrativo).toBe(0)
+  })
 })
