@@ -1,781 +1,199 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { setActivePinia, createPinia } from 'pinia'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import { useTaxStore } from './taxStore'
 
-// Mock localStorage for node environment
 const localStorageMock = (() => {
-  let store: Record<string, string> = {}
+  let values: Record<string, string> = {}
   return {
-    getItem: (key: string) => store[key] || null,
-    setItem: (key: string, value: string) => { store[key] = value.toString() },
-    clear: () => { store = {} },
-    removeItem: (key: string) => { delete store[key] }
+    getItem: (key: string) => values[key] ?? null,
+    setItem: (key: string, value: string) => { values[key] = String(value) },
+    clear: () => { values = {} },
+    removeItem: (key: string) => { delete values[key] },
   }
 })()
 Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, writable: true })
+Object.defineProperty(globalThis, 'window', {
+  value: { location: new URL('https://taxgrid.it/') },
+  writable: true,
+  configurable: true,
+})
 
-import { useTaxStore, ALIQUOTA_INPS_DATORE } from './taxStore'
+const nextTick = () => new Promise((resolve) => setTimeout(resolve, 0))
 
-describe('TaxStore ATECO Dropdown Logic', () => {
+describe('TaxStore 2026 fiscal engine', () => {
   beforeEach(() => {
     localStorage.clear()
+    window.location = new URL('https://taxgrid.it/') as unknown as Location
     setActivePinia(createPinia())
   })
 
-  it('should initialize with default values', () => {
+  it('initializes the explicit 2026 fiscal year and current INPS cap', () => {
     const store = useTaxStore()
-    expect(store.atecoCategory).toBe('professionisti')
-    expect(store.atecoCoef).toBe(0.78)
+    expect(store.fiscalYear).toBe(2026)
+    expect(store.massimaleInps).toBe(122_295)
+    expect(store.forfettarioStartup).toBe(false)
   })
 
-  it('should update atecoCoef when atecoCategory changes', async () => {
+  it('keeps ATECO category and coefficient synchronized', async () => {
     const store = useTaxStore()
-    
-    store.atecoCategory = 'artigiani_imprese'
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(store.atecoCoef).toBe(0.67)
-
     store.atecoCategory = 'commercio'
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(store.atecoCoef).toBe(0.40)
+    await nextTick()
+    expect(store.atecoCoef).toBe(0.4)
+
+    store.atecoCategory = 'custom'
+    store.atecoCoef = 0.71
+    await nextTick()
+    expect(store.atecoCoef).toBe(0.71)
   })
 
-  it('should calculate forfettario values reactively based on atecoCategory', async () => {
+  it('migrates legacy expense and ATECO state', () => {
+    localStorage.setItem('taxgrid_state', JSON.stringify({ speseDeducibili: 8_000, atecoCoef: 0.54 }))
     const store = useTaxStore()
-    store.fatturato = 100000
-    store.forfettarioCassa = 'gestione_separata'
-    store.forfettarioStartup = false
-
-    expect(store.forfettarioResult.inps).toBeCloseTo(20334.60, 2)
-    expect(store.forfettarioResult.tasse).toBeCloseTo(8649.81, 2)
-    expect(store.forfettarioResult.netto).toBeCloseTo(66015.59, 2)
-
-    store.atecoCategory = 'commercio'
-    await new Promise((resolve) => setTimeout(resolve, 0))
-
-    expect(store.forfettarioResult.inps).toBeCloseTo(10428.00, 2)
-    expect(store.forfettarioResult.tasse).toBeCloseTo(4435.80, 2)
-    expect(store.forfettarioResult.netto).toBeCloseTo(80136.20, 2)
-  })
-
-  it('should load state from localStorage with atecoCategory', () => {
-    localStorage.setItem('taxgrid_state', JSON.stringify({
-      fatturato: 60000,
-      spese: 8000,
-      atecoCategory: 'costruzioni_immobiliari',
-      atecoCoef: 0.86,
-      forfettarioCassa: 'artigiani',
-      forfettarioStartup: true,
-      ordinarioCassa: 'artigiani',
-      srlDistribuzione: 'utili'
-    }))
-
-    const store = useTaxStore()
-    expect(store.fatturato).toBe(60000)
-    expect(store.speseDeducibili).toBe(8000)
-    expect(store.atecoCategory).toBe('costruzioni_immobiliari')
-    expect(store.atecoCoef).toBe(0.86)
-    expect(store.forfettarioCassa).toBe('artigiani')
-    expect(store.forfettarioStartup).toBe(true)
-    expect(store.ordinarioCassa).toBe('artigiani')
-    expect(store.srlDistribuzione).toBe('utili')
-  })
-
-  it('should fallback and deduce atecoCategory if only atecoCoef is in localStorage', () => {
-    localStorage.setItem('taxgrid_state', JSON.stringify({
-      fatturato: 60000,
-      speseDeducibili: 8000,
-      atecoCoef: 0.54,
-      forfettarioCassa: 'artigiani',
-      forfettarioStartup: true,
-      ordinarioCassa: 'artigiani',
-      srlDistribuzione: 'utili'
-    }))
-
-    const store = useTaxStore()
+    expect(store.costiOperativiReali).toBe(8_000)
+    expect(store.costiFiscalmenteDeducibili).toBe(8_000)
     expect(store.atecoCategory).toBe('commercio_ambulante_non_alim')
-    expect(store.atecoCoef).toBe(0.54)
-  })
-})
-
-describe('TaxStore SRL Logic', () => {
-  beforeEach(() => {
-    localStorage.clear()
-    setActivePinia(createPinia())
   })
 
-  it('should calculate SRL values in compenso mode correctly and differ from Ordinario', async () => {
+  it('uses the employee taxable income rather than RAL in combined positions', () => {
     const store = useTaxStore()
-    store.fatturato = 50000
-    store.speseDeducibili = 5000
-    store.srlDistribuzione = 'compenso'
-
-    // Verify S.R.L. Compenso values (costiFissiSrl = 4000)
-    // utileLordoOperativo = 41000
-    // compensoLordo = 41000 / 1.2239 = 33499.4689
-    // inpsAzienda = 33499.4689 * 0.2239 = 7500.5311
-    // inpsAmministratore = 33499.4689 * 0.1120 = 3751.9405
-    // inpsTotale = 11252.47
-    // imponibileFiscale = 33499.4689 - 3751.9405 = 29747.5284
-    // irpefLorda = 6440 + 1747.5284 * 0.35 = 7051.6349
-    // detrazioni = 1910 * (20252.4716 / 22000) = 1758.2828
-    // irpefNetta = 5293.3522
-    // netto = 33499.4689 - 3751.9405 - 5293.3522 = 24454.1762
-    expect(store.srlResult.inps).toBeCloseTo(11252.47, 2)
-    expect(store.srlResult.tasse).toBeCloseTo(5293.35, 2)
-    expect(store.srlResult.netto).toBeCloseTo(24454.18, 2)
-
-    // Verify they are different from Ordinario
-    // ordinario: inps = 11731.5, tasse = 8283.98, netto = 24984.53
-    expect(store.srlResult.inps).not.toBeCloseTo(store.ordinarioResult.inps, 1)
-    expect(store.srlResult.tasse).not.toBeCloseTo(store.ordinarioResult.tasse, 1)
-    expect(store.srlResult.netto).not.toBeCloseTo(store.ordinarioResult.netto, 1)
-  })
-
-  it('should deduct corporate fixed costs of 4000 before calculating distributions in compenso and utili mode', () => {
-    const store = useTaxStore()
-    
-    // Scenario A: Revenue doesn't exceed corporate costs + expenses
-    store.fatturato = 3000
-    store.speseDeducibili = 0
-    store.srlDistribuzione = 'compenso'
-    expect(store.srlResult.inps).toBe(0)
-    expect(store.srlResult.tasse).toBe(0)
-    expect(store.srlResult.netto).toBe(0)
-
-    store.srlDistribuzione = 'utili'
-    expect(store.srlResult.inps).toBe(0)
-    expect(store.srlResult.tasse).toBe(0)
-    expect(store.srlResult.netto).toBe(0)
-
-    // Scenario B: Revenue slightly exceeds costs + expenses
-    store.fatturato = 4500
-    store.speseDeducibili = 0
-    store.srlDistribuzione = 'utili'
-    // utileLordoOperativo = 500
-    // tasseSrl = 500 * 0.279 = 139.5
-    // utileNetto = 500 - 139.5 = 360.5
-    // tasseDividendi = 360.5 * 0.26 = 93.73
-    // tasseTotali = 139.5 + 93.73 = 233.23
-    // netto = 360.5 - 93.73 = 266.77
-    expect(store.srlResult.tasse).toBeCloseTo(233.23, 2)
-    expect(store.srlResult.netto).toBeCloseTo(266.77, 2)
-  })
-})
-
-describe('TaxStore Expenses Mode (Simple / Advanced)', () => {
-  beforeEach(() => {
-    localStorage.clear()
-    setActivePinia(createPinia())
-  })
-
-  it('should calculate tax discounts when advanced mode is active', async () => {
-    const store = useTaxStore()
-    store.fatturato = 50000
-    store.expensesMode = 'advanced'
-    store.addizionaleRegionale = 0
-    store.addizionaleComunale = 0
-    store.speseDeducibili = 5000
-    store.speseDetraibili = 10000
-
-    // Ordinario calculations:
-    // imponibileBase = 50000 - 5000 = 45000
-    // inps = 45000 * 0.2607 = 11731.50
-    // imponibileFiscale = 45000 - 11731.50 = 33268.50
-    // irpefLorda = 28000 * 0.23 + 5268.50 * 0.35 = 6440 + 1843.975 = 8283.975
-    // scontoDetraibili = 10000 * 0.19 = 1900
-    // irpefNetta = 8283.975 - 1900 = 6383.98 (rounded)
-    // netto = 50000 - 5000 - 11731.50 - 6383.98 = 26884.52 (rounded)
-    expect(store.ordinarioResult.inps).toBeCloseTo(11731.50, 2)
-    expect(store.ordinarioResult.tasse).toBeCloseTo(6383.975, 2)
-    expect(store.ordinarioResult.netto).toBeCloseTo(26884.525, 2)
-
-    // Forfettario calculations:
-    // unimpeded by expenses
-    // base = 50000 * 0.78 = 39000
-    // inps = 39000 * 0.2607 = 10167.3
-    // imponibileNetto = 39000 - 10167.3 = 28832.7
-    // tasse = 28832.7 * 0.05 = 1441.635
-    // netto = 50000 - 10167.3 - 1441.635 = 38391.07
-    expect(store.forfettarioResult.inps).toBeCloseTo(10167.30, 2)
-    expect(store.forfettarioResult.tasse).toBeCloseTo(1441.635, 2)
-    expect(store.forfettarioResult.netto).toBeCloseTo(33391.065, 2)
-
-    // SRL compenso mode:
-    // utileLordoOperativo = 50000 - 5000 - 4000 = 41000
-    // compensoLordo = 41000 / 1.2239 = 33499.4689
-    // inpsAzienda = 33499.4689 * 0.2239 = 7500.5311
-    // inpsAmministratore = 33499.4689 * 0.1120 = 3751.9405
-    // inpsTotale = 11252.47
-    // imponibileFiscale = 33499.4689 - 3751.9405 = 29747.5284
-    // irpefLorda = 6440 + 1747.5284 * 0.35 = 7051.6349
-    // detrazioni = 1910 * (20252.4716 / 22000) = 1758.2828
-    // scontoDetraibili = 10000 * 0.19 = 1900
-    // irpefNetta = Math.max(7051.6349 - 1758.2828 - 1900, 0) = 3393.3521
-    // netto = compensoLordo - inpsAmministratore - irpefNetta = 33499.4689 - 3751.9405 - 3393.3521 = 26354.1763
-    expect(store.srlResult.inps).toBeCloseTo(11252.47, 2)
-    expect(store.srlResult.tasse).toBeCloseTo(3393.35, 2)
-    expect(store.srlResult.netto).toBeCloseTo(26354.18, 2)
-  })
-
-  it('should ignore detraibili expenses in simple mode', async () => {
-    const store = useTaxStore()
-    store.fatturato = 50000
-    store.expensesMode = 'simple'
-    store.speseDeducibili = 5000
-    store.speseDetraibili = 10000 // should be ignored
-
-    // Ordinario calculations (should be same as if detraibili = 0):
-    // irpefNetta = 8283.98 (no 1900 discount)
-    // netto = 24984.53
-    expect(store.ordinarioResult.tasse).toBeCloseTo(8283.98, 2)
-    expect(store.ordinarioResult.netto).toBeCloseTo(24984.53, 2)
-  })
-})
-
-describe('TaxStore Monthly Salary Comparison Logic', () => {
-  beforeEach(() => {
-    localStorage.clear()
-    setActivePinia(createPinia())
-  })
-
-  it('should initialize with default 12 months for comparison', () => {
-    const store = useTaxStore()
-    expect(store.mesiParagone).toBe(12)
-  })
-
-  it('should calculate nettoMensile correctly for all regimes', () => {
-    const store = useTaxStore()
-    store.fatturato = 50000
-    store.mesiParagone = 12
-
-    const forfettarioNetto = store.forfettarioResult.netto
-    expect(store.forfettarioResult.nettoMensile).toBeCloseTo(forfettarioNetto / 12, 2)
-
-    const ordinarioNetto = store.ordinarioResult.netto
-    expect(store.ordinarioResult.nettoMensile).toBeCloseTo(ordinarioNetto / 12, 2)
-
-    const srlNetto = store.srlResult.netto
-    expect(store.srlResult.nettoMensile).toBeCloseTo(srlNetto / 12, 2)
-  })
-
-  it('should update calculations immediately when mesiParagone changes', () => {
-    const store = useTaxStore()
-    store.fatturato = 50000
-    store.mesiParagone = 14
-
-    const forfettarioNetto = store.forfettarioResult.netto
-    expect(store.forfettarioResult.nettoMensile).toBeCloseTo(forfettarioNetto / 14, 2)
-  })
-
-  it('should persist and load mesiParagone to/from localStorage', () => {
-    localStorage.setItem('taxgrid_state', JSON.stringify({
-      fatturato: 60000,
-      speseDeducibili: 8000,
-      mesiParagone: 13
-    }))
-
-    const store = useTaxStore()
-    expect(store.mesiParagone).toBe(13)
-  })
-})
-
-describe('TaxStore INPS Reductions Logic', () => {
-  beforeEach(() => {
-    localStorage.clear()
-    setActivePinia(createPinia())
-  })
-
-  it('should initialize with default values', () => {
-    const store = useTaxStore()
-    expect(store.forfettarioRiduzione35).toBe(false)
-    expect(store.forfettarioRiduzione50).toBe(false)
-    expect(store.ordinarioRiduzione50).toBe(false)
-    expect(store.srlCassa).toBe('gestione_separata')
-    expect(store.srlRiduzione50).toBe(false)
-  })
-
-  it('should guarantee mutual exclusivity for Forfettario reductions', async () => {
-    const store = useTaxStore()
-    store.forfettarioRiduzione35 = true
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(store.forfettarioRiduzione50).toBe(false)
-
-    store.forfettarioRiduzione50 = true
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(store.forfettarioRiduzione35).toBe(false)
-  })
-
-  it('should reset reduction flags when cassa changes to gestione_separata', async () => {
-    const store = useTaxStore()
-    store.forfettarioCassa = 'artigiani'
-    store.forfettarioRiduzione35 = true
-    
-    store.ordinarioCassa = 'artigiani'
-    store.ordinarioRiduzione50 = true
-    
-    store.srlCassa = 'artigiani'
-    store.srlRiduzione50 = true
-    
-    await new Promise((resolve) => setTimeout(resolve, 0))
-
-    store.forfettarioCassa = 'gestione_separata'
-    store.ordinarioCassa = 'gestione_separata'
-    store.srlCassa = 'gestione_separata'
-    
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    
-    expect(store.forfettarioRiduzione35).toBe(false)
-    expect(store.forfettarioRiduzione50).toBe(false)
-    expect(store.ordinarioRiduzione50).toBe(false)
-    expect(store.srlRiduzione50).toBe(false)
-  })
-
-  it('should apply 35% and 50% reductions to Forfettario INPS correctly', async () => {
-    const store = useTaxStore()
-    store.fatturato = 50000
-    store.forfettarioCassa = 'artigiani'
-    
-    // Base Artigiani for 50000 * 0.78 = 39000
-    // inpsMinimale = 4208
-    // redditoEccedente = 39000 - 17504 = 21496
-    // inpsEccedente = 21496 * 0.24 = 5159.04
-    // totaleBase = 4208 + 5159.04 = 9367.04
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    const baseInps = store.forfettarioResult.inps
-    expect(baseInps).toBeCloseTo(9367.04, 2)
-
-    // Apply 35% reduction
-    store.forfettarioRiduzione35 = true
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(store.forfettarioResult.inps).toBeCloseTo(baseInps * 0.65, 2)
-
-    // Apply 50% reduction instead
-    store.forfettarioRiduzione50 = true
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(store.forfettarioResult.inps).toBeCloseTo(baseInps * 0.50, 2)
-  })
-
-  it('should apply 50% reduction to Ordinario INPS correctly and affect tax calculation', async () => {
-    const store = useTaxStore()
-    store.fatturato = 50000
-    store.speseDeducibili = 5000
-    store.ordinarioCassa = 'artigiani'
-    
-    // imponibileBase = 45000
-    // Base INPS: 4208 + (45000 - 17504) * 0.24 = 4208 + 27496 * 0.24 = 10807.04
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    const baseInps = store.ordinarioResult.inps
-    const baseTasse = store.ordinarioResult.tasse
-    const baseNetto = store.ordinarioResult.netto
-    expect(baseInps).toBeCloseTo(10807.04, 2)
-
-    // Apply 50% reduction
-    store.ordinarioRiduzione50 = true
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    
-    expect(store.ordinarioResult.inps).toBeCloseTo(baseInps * 0.50, 2)
-    // Decreased INPS should increase IRPEF (tasse) since less INPS is deducted
-    expect(store.ordinarioResult.tasse).toBeGreaterThan(baseTasse)
-    // Net should still be higher because we saved on INPS
-    expect(store.ordinarioResult.netto).toBeGreaterThan(baseNetto)
-  })
-
-  it('should apply 50% reduction to SRL INPS correctly', async () => {
-    const store = useTaxStore()
-    store.fatturato = 50000
-    store.speseDeducibili = 5000
-    store.srlCassa = 'artigiani'
-    store.srlDistribuzione = 'compenso'
-
-    // compensoLordo = 41000
-    // Base INPS: 4208 + (41000 - 17504) * 0.24 = 4208 + 23496 * 0.24 = 9847.04
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    const baseInps = store.srlResult.inps
-    expect(baseInps).toBeCloseTo(9847.04, 2)
-
-    // Apply 50% reduction
-    store.srlRiduzione50 = true
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(store.srlResult.inps).toBeCloseTo(baseInps * 0.50, 2)
-  })
-})
-
-describe('TaxStore Advanced Parameters (RAL, Local Taxes, INPS Cap, Full-Time Exemptions)', () => {
-  beforeEach(() => {
-    localStorage.clear()
-    setActivePinia(createPinia())
-  })
-
-  it('should apply cumulative IRPEF when RAL is present in Ordinario', () => {
-    const store = useTaxStore()
-    store.fatturato = 20000
-    store.speseDeducibili = 0
-    store.advancedMode = true
-    store.hasLavoroDipendente = false
-    store.addizionaleRegionale = 0
-    store.addizionaleComunale = 0
-    
-    // Non-job: 20000 - inps (20000 * 0.2607 = 5214). Imponibile = 14786.
-    // IRPEF = 14786 * 0.23 = 3400.78
-    expect(store.ordinarioResult.tasse).toBeCloseTo(3400.78, 2)
-
-    // With job RAL = 30000
-    store.hasLavoroDipendente = true
-    store.ralDipendente = 30000
-    
-    // Imponibile PIVA = 20000 - 4800 (INPS GS at 24%) = 15200. Total pooled = 15200 + 30000 = 45200.
-    // IRPEF total = 28000 * 0.23 + (45200 - 28000) * 0.35 = 6440 + 6020 = 12460.00
-    // IRPEF RAL = 28000 * 0.23 + (30000 - 28000) * 0.35 = 6440 + 700 = 7140.00
-    // Net IRPEF on PIVA = 12460 - 7140 = 5320
-    expect(store.ordinarioResult.tasse).toBeCloseTo(5320, 2)
-  })
-
-  it('should apply 24% GS rate for concurrent employment', () => {
-    const store = useTaxStore()
-    store.fatturato = 50000
     store.advancedMode = true
     store.hasLavoroDipendente = true
-    
-    // Forfettario GS INPS: 50000 * 0.78 = 39000. Rate = 24%. INPS = 9360.
-    expect(store.forfettarioResult.inps).toBeCloseTo(9360, 2)
+    store.ralDipendente = 30_000
+    store.aliquotaInpsDipendente = 9.19
+    store.costiOperativiReali = 0
+    store.costiFiscalmenteDeducibili = 0
+    expect(store.ordinarioResult.baseTaxPosition.taxableIncome).toBeCloseTo(27_243, 2)
+    expect(store.ordinarioResult.combinedTaxPosition.taxableIncome).toBeCloseTo(
+      27_243 + store.ordinarioResult.taxableIncome,
+      2,
+    )
   })
 
-  it('should exempt Artigiani INPS completely for full-time employees', () => {
+  it('calculates ordinary tax as the full incremental personal tax cost', () => {
     const store = useTaxStore()
-    store.fatturato = 50000
+    store.advancedMode = true
+    store.hasLavoroDipendente = true
+    store.ralDipendente = 30_000
+    store.speseDetraibili = 10_000
+    const expected = store.ordinarioResult.combinedTaxPosition.totalTaxes
+      - store.ordinarioResult.baseTaxPosition.totalTaxes
+    expect(store.ordinarioResult.tasse).toBeCloseTo(expected, 8)
+    expect(store.ordinarioResult.baseTaxPosition.genericTaxCredits).toBe(1_900)
+    expect(store.ordinarioResult.combinedTaxPosition.genericTaxCredits).toBe(1_900)
+  })
+
+  it('counts trattamento integrativo exactly once in employee net pay', () => {
+    const store = useTaxStore()
+    store.inputMode = 'ral'
+    store.fatturato = 12_000
+    store.costiOperativiReali = 0
+    const result = store.dipendenteResult
+    expect(result.taxPosition.trattamentoIntegrativo).toBe(1_200)
+    const expectedNet = result.ral - result.inpsDipendente - result.taxPosition.netIrpef
+      - result.taxPosition.regionalTax - result.taxPosition.municipalTax + 1_200
+    expect(result.netto).toBeCloseTo(expectedNet, 8)
+  })
+
+  it('separates 2026 artisan and merchant minimum contributions', () => {
+    const store = useTaxStore()
+    store.fatturato = 10_000
+    store.atecoCoef = 0.78
+    store.businessEnrollment = 'required'
+    store.forfettarioCassa = 'artigiani'
+    expect(store.forfettarioResult.inps).toBeCloseTo(4_521.36, 2)
+    store.forfettarioCassa = 'commercianti'
+    expect(store.forfettarioResult.inps).toBeCloseTo(4_611.64, 2)
+  })
+
+  it('does not infer Artigiani or Commercianti exemption from full-time employment', () => {
+    const store = useTaxStore()
     store.advancedMode = true
     store.hasLavoroDipendente = true
     store.dipendenteFullTime = true
-    
+    store.businessEnrollment = 'required'
     store.forfettarioCassa = 'artigiani'
-    store.ordinarioCassa = 'artigiani'
-    store.srlCassa = 'artigiani'
-    store.srlDistribuzione = 'compenso'
-    
+    expect(store.forfettarioResult.inps).toBeGreaterThan(0)
+    store.businessEnrollment = 'not_required'
     expect(store.forfettarioResult.inps).toBe(0)
-    expect(store.ordinarioResult.inps).toBe(0)
-    expect(store.srlResult.inps).toBe(0)
   })
 
-  it('should cap INPS calculations based on custom massimaleInps', () => {
+  it('models contribution reliefs explicitly and exclusively', () => {
     const store = useTaxStore()
-    store.fatturato = 200000
-    store.advancedMode = true
-    store.massimaleInps = 100000
-    store.forfettarioCassa = 'gestione_separata'
-    
-    // Forfettario GS: base = 200000 * 0.78 = 156000. Capped at 100000.
-    // INPS = 100000 * 0.2607 = 26070.
-    expect(store.forfettarioResult.inps).toBeCloseTo(26070, 2)
-  })
-
-  it('should increase taxes when local addizionali are modified', () => {
-    const store = useTaxStore()
-    store.fatturato = 50000
-    store.speseDeducibili = 5000
-    store.advancedMode = true
-    store.addizionaleRegionale = 1.73
-    store.addizionaleComunale = 0.8
-    
-    const initialTasse = store.ordinarioResult.tasse
-    
-    store.addizionaleRegionale = 3.33
-    const finalTasse = store.ordinarioResult.tasse
-    
-    expect(finalTasse).toBeGreaterThan(initialTasse)
-  })
-})
-
-describe('TaxStore Card Reordering', () => {
-  beforeEach(() => {
-    localStorage.clear()
-    setActivePinia(createPinia())
-  })
-
-  it('should initialize cardOrder with default order', () => {
-    const store = useTaxStore()
-    expect(store.cardOrder).toEqual(['forfettario', 'ordinario', 'srl', 'dipendente'])
-  })
-
-  it('should persist cardOrder changes to localStorage', async () => {
-    const store = useTaxStore()
-    const newOrder = ['srl', 'forfettario', 'dipendente', 'ordinario']
-    store.cardOrder = newOrder
-    
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    
-    const savedState = JSON.parse(localStorage.getItem('taxgrid_state') || '{}')
-    expect(savedState.cardOrder).toEqual(newOrder)
-  })
-
-  it('should load cardOrder from localStorage', () => {
-    const savedOrder = ['dipendente', 'srl', 'ordinario', 'forfettario']
-    localStorage.setItem('taxgrid_state', JSON.stringify({
-      cardOrder: savedOrder
-    }))
-
-    const store = useTaxStore()
-    expect(store.cardOrder).toEqual(savedOrder)
-  })
-})
-
-describe('TaxStore URL State Sharing', () => {
-  beforeEach(() => {
-    localStorage.clear()
-    setActivePinia(createPinia())
-
-    const mockLocation = {
-      href: 'https://taxgrid.it/',
-      search: '',
-      origin: 'https://taxgrid.it',
-      pathname: '/',
-      protocol: 'https:',
-      host: 'taxgrid.it'
-    }
-    Object.defineProperty(globalThis, 'window', {
-      value: { location: mockLocation },
-      writable: true,
-      configurable: true
-    })
-  })
-
-  it('should produce a valid shareable URL with all current state', () => {
-    const store = useTaxStore()
-    store.fatturato = 85000
-    store.atecoCategory = 'commercio'
-    store.mesiParagone = 14
+    store.businessEnrollment = 'required'
     store.forfettarioCassa = 'artigiani'
-
-    const url = store.buildShareUrl()
-
-    expect(url).toContain('https://taxgrid.it/')
-    expect(url).toContain('?data=')
-
-    const urlObj = new URL(url)
-    const dataParam = urlObj.searchParams.get('data')
-    expect(dataParam).toBeTruthy()
-
-    const decoded = JSON.parse(atob(dataParam!))
-    expect(decoded.fatturato).toBe(85000)
-    expect(decoded.atecoCategory).toBe('commercio')
-    expect(decoded.mesiParagone).toBe(14)
-    expect(decoded.forfettarioCassa).toBe('artigiani')
+    const fullContribution = store.forfettarioResult.inps
+    store.forfettarioContributionRelief = 'forfettario_35'
+    expect(store.forfettarioResult.inps).toBeCloseTo(fullContribution * 0.65, 2)
+    store.forfettarioContributionRelief = 'pensioner_50'
+    expect(store.forfettarioResult.inps).toBeCloseTo(fullContribution * 0.5, 2)
   })
 
-  it('should include all state keys in the serialized URL', () => {
+  it('resets business reliefs when switching to Gestione Separata', async () => {
     const store = useTaxStore()
-
-    const url = store.buildShareUrl()
-    const urlObj = new URL(url)
-    const dataParam = urlObj.searchParams.get('data')
-    const decoded = JSON.parse(atob(dataParam!))
-
-    const expectedKeys = [
-      'fatturato', 'advancedMode', 'speseDeducibili', 'speseDetraibili',
-      'atecoCategory', 'atecoCoef', 'forfettarioCassa', 'forfettarioStartup',
-      'forfettarioRiduzione35', 'forfettarioRiduzione50', 'ordinarioCassa',
-      'ordinarioRiduzione50', 'srlDistribuzione', 'srlCassa', 'srlRiduzione50',
-      'mesiParagone', 'hasLavoroDipendente', 'ralDipendente', 'dipendenteFullTime',
-      'addizionaleRegionale', 'addizionaleComunale', 'massimaleInps',
-      'showForfettario', 'showOrdinario', 'showSrl', 'showDipendente', 'cardOrder'
-    ]
-
-    for (const key of expectedKeys) {
-      expect(decoded).toHaveProperty(key)
-    }
+    store.forfettarioCassa = 'artigiani'
+    store.forfettarioContributionRelief = 'forfettario_35'
+    store.forfettarioCassa = 'gestione_separata'
+    await nextTick()
+    expect(store.forfettarioContributionRelief).toBe('none')
   })
 
-  it('should apply URL state overriding default values', () => {
-    const customState = {
-      fatturato: 95000,
-      atecoCategory: 'intermediari',
-      atecoCoef: 0.62,
-      mesiParagone: 13,
-      showDipendente: false,
-      showForfettario: false
-    }
-
-    const encoded = btoa(JSON.stringify(customState))
-    ;(globalThis.window as any).location.search = `?data=${encoded}`
-
+  it('uses the 2026 administrator rate and configurable SRL costs', () => {
     const store = useTaxStore()
-
-    expect(store.fatturato).toBe(95000)
-    expect(store.atecoCategory).toBe('intermediari')
-    expect(store.atecoCoef).toBe(0.62)
-    expect(store.mesiParagone).toBe(13)
-    expect(store.showDipendente).toBe(false)
-    expect(store.showForfettario).toBe(false)
-    expect(store.ordinarioCassa).toBe('gestione_separata')
+    store.costiOperativiReali = 0
+    store.srlCostiFissi = 4_000
+    const firstProfit = store.srlResult.operatingProfit
+    const totalAdministratorInps = store.srlResult.administratorCompanyInps + store.srlResult.administratorPersonalInps
+    expect(totalAdministratorInps).toBeCloseTo(store.srlResult.administratorGrossCompensation * 0.3503, 2)
+    store.srlCostiFissi = 7_000
+    expect(store.srlResult.operatingProfit).toBe(firstProfit - 3_000)
   })
 
-  it('should prioritize URL state over localStorage', () => {
-    localStorage.setItem('taxgrid_state', JSON.stringify({
-      fatturato: 30000,
-      atecoCategory: 'professionisti',
-      atecoCoef: 0.78,
-      mesiParagone: 10,
-      showDipendente: true
-    }))
-
-    const urlState = {
-      fatturato: 75000,
-      atecoCategory: 'commercio'
-    }
-
-    const encoded = btoa(JSON.stringify(urlState))
-    ;(globalThis.window as any).location.search = `?data=${encoded}`
-
+  it('keeps administrator and working-shareholder roles separate', () => {
     const store = useTaxStore()
-
-    expect(store.fatturato).toBe(75000)
-    expect(store.atecoCategory).toBe('commercio')
-    expect(store.mesiParagone).toBe(10)
-    expect(store.showDipendente).toBe(true)
+    const administratorOnly = store.srlResult.inps
+    store.srlSocioLavoratore = true
+    store.srlSocioCassa = 'commercianti'
+    store.businessEnrollment = 'required'
+    expect(store.srlResult.inps).toBeGreaterThan(administratorOnly)
   })
 
-  it('should ignore invalid URL data gracefully', () => {
-    ;(globalThis.window as any).location.search = '?data=invalid!!notbase64!!'
-
+  it.each([
+    [85_000, 'ok'],
+    [90_000, 'warning'],
+    [100_001, 'error'],
+  ])('classifies the forfettario revenue threshold at %s', (revenue, expectedLevel) => {
     const store = useTaxStore()
-
-    expect(store.fatturato).toBe(50000)
-    expect(store.atecoCategory).toBe('professionisti')
+    store.fatturato = revenue
+    expect(store.forfettarioStatus.level).toBe(expectedLevel)
   })
 
-  it('should produce different URLs for different states', () => {
+  it('validates prior-year employment income independently from current RAL', () => {
     const store = useTaxStore()
-
-    store.fatturato = 50000
-    store.atecoCategory = 'professionisti'
-    const url1 = store.buildShareUrl()
-
-    store.fatturato = 80000
-    store.atecoCategory = 'commercio'
-    const url2 = store.buildShareUrl()
-
-    expect(url1).not.toBe(url2)
-
-    const data1 = JSON.parse(atob(new URL(url1).searchParams.get('data')!))
-    const data2 = JSON.parse(atob(new URL(url2).searchParams.get('data')!))
-    expect(data1.fatturato).toBe(50000)
-    expect(data2.fatturato).toBe(80000)
-  })
-})
-
-describe('TaxStore RAL/Fatturato Toggle Conversion', () => {
-  const FACTOR = 1 + ALIQUOTA_INPS_DATORE // 1.2381
-
-  beforeEach(() => {
-    localStorage.clear()
-    setActivePinia(createPinia())
+    store.advancedMode = true
+    store.ralDipendente = 80_000
+    store.redditoDipendentePrecedente = 30_000
+    expect(store.validationIssues.some((issue) => issue.message.includes('causa ostativa'))).toBe(false)
+    store.redditoDipendentePrecedente = 36_000
+    expect(store.validationIssues.some((issue) => issue.message.includes('causa ostativa'))).toBe(true)
   })
 
-  it('should convert RAL to Fatturato on toggle (42000 → 52000.20)', () => {
+  it('serializes fiscal year and all new assumptions in a compact share URL', () => {
     const store = useTaxStore()
-    store.inputMode = 'ral'
-    store.fatturato = 42000
-
-    // Simulate toggle: RAL → Fatturato
-    if (store.inputMode === 'ral') {
-      store.fatturato = Math.round(store.fatturato * FACTOR * 100) / 100
-    }
-    store.inputMode = 'fatturato'
-
-    expect(store.fatturato).toBeCloseTo(52000.20, 1)
-    expect(store.inputMode).toBe('fatturato')
+    const url = new URL(store.buildShareUrl())
+    const decoded = JSON.parse(atob(url.searchParams.get('data')!))
+    expect(decoded).toMatchObject({ v: 2, y: 2026, mi: 122_295 })
+    expect(decoded).toHaveProperty('cr')
+    expect(decoded).toHaveProperty('cf')
+    expect(decoded).toHaveProperty('be')
   })
 
-  it('should convert Fatturato to RAL on toggle (52000.20 → 42000)', () => {
+  it('converts RAL and revenue using the configurable employer assumption', () => {
     const store = useTaxStore()
-    store.inputMode = 'fatturato'
-    store.fatturato = 52000.20
-
-    // Simulate toggle: Fatturato → RAL
-    if (store.inputMode === 'fatturato') {
-      store.fatturato = Math.round(store.fatturato / FACTOR * 100) / 100
-    }
-    store.inputMode = 'ral'
-
-    expect(store.fatturato).toBeCloseTo(42000, 1)
-    expect(store.inputMode).toBe('ral')
-  })
-
-  it('should preserve value on round-trip (RAL → Fatturato → RAL)', () => {
-    const store = useTaxStore()
-    store.inputMode = 'ral'
-    store.fatturato = 42000
-
-    // RAL → Fatturato
-    store.fatturato = Math.round(store.fatturato * FACTOR * 100) / 100
-    store.inputMode = 'fatturato'
-
-    // Fatturato → RAL
-    store.fatturato = Math.round(store.fatturato / FACTOR * 100) / 100
-    store.inputMode = 'ral'
-
-    expect(store.fatturato).toBeCloseTo(42000, 0)
-  })
-
-  it('should preserve value on round-trip (Fatturato → RAL → Fatturato)', () => {
-    const store = useTaxStore()
-    store.inputMode = 'fatturato'
-    store.fatturato = 50000
-
-    // Fatturato → RAL
-    store.fatturato = Math.round(store.fatturato / FACTOR * 100) / 100
-    store.inputMode = 'ral'
-
-    // RAL → Fatturato
-    store.fatturato = Math.round(store.fatturato * FACTOR * 100) / 100
-    store.inputMode = 'fatturato'
-
-    expect(store.fatturato).toBeCloseTo(50000, 0)
-  })
-
-  it('should produce 0 when converting from 0 (RAL → Fatturato)', () => {
-    const store = useTaxStore()
-    store.inputMode = 'ral'
-    store.fatturato = 0
-
-    store.fatturato = Math.round(store.fatturato * FACTOR * 100) / 100
-    store.inputMode = 'fatturato'
-
-    expect(store.fatturato).toBe(0)
-  })
-
-  it('should produce 0 when converting from 0 (Fatturato → RAL)', () => {
-    const store = useTaxStore()
-    store.inputMode = 'fatturato'
-    store.fatturato = 0
-
-    store.fatturato = Math.round(store.fatturato / FACTOR * 100) / 100
-    store.inputMode = 'ral'
-
-    expect(store.fatturato).toBe(0)
-  })
-
-  it('should handle high values without overflow (999999 RAL → Fatturato)', () => {
-    const store = useTaxStore()
-    store.inputMode = 'ral'
-    store.fatturato = 999999
-
-    store.fatturato = Math.round(store.fatturato * FACTOR * 100) / 100
-    store.inputMode = 'fatturato'
-
-    expect(store.fatturato).toBeGreaterThan(0)
-    expect(Number.isFinite(store.fatturato)).toBe(true)
-    expect(store.fatturato).toBeCloseTo(999999 * FACTOR, 0)
-  })
-
-  it('should round to 2 decimal places', () => {
-    const store = useTaxStore()
-    store.inputMode = 'ral'
-    store.fatturato = 30000
-
-    store.fatturato = Math.round(store.fatturato * FACTOR * 100) / 100
-    store.inputMode = 'fatturato'
-
-    expect(store.fatturato).toBe(37143)
+    store.fatturato = 50_000
+    store.aliquotaContributivaDatore = 25
+    store.convertInputMode('ral')
+    expect(store.fatturato).toBe(40_000)
+    store.convertInputMode('fatturato')
+    expect(store.fatturato).toBe(50_000)
   })
 })

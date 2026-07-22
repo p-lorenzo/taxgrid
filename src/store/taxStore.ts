@@ -1,5 +1,19 @@
 import { defineStore } from 'pinia'
-import { ref, computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { FISCAL_RULES_2026, FISCAL_YEAR } from '../fiscal-rules'
+import type {
+  BusinessFund,
+  ContributionRelief,
+  EnrollmentStatus,
+  FiscalYear,
+  PrevidentialFund,
+} from '../fiscal-rules'
+import {
+  calculateAdministratorContributions,
+  calculateBusinessContributions,
+  calculatePersonalTaxPosition,
+  describeProgressiveTax,
+} from '../tax-engine'
 
 export interface AtecoCategory {
   id: string
@@ -14,6 +28,12 @@ export interface BreakdownStep {
   details?: string
 }
 
+export interface ValidationIssue {
+  scope: 'forfettario' | 'ordinario' | 'srl' | 'dipendente' | 'global'
+  severity: 'info' | 'warning' | 'error'
+  message: string
+}
+
 export const ATECO_CATEGORIES: AtecoCategory[] = [
   { id: 'professionisti', name: 'Professionisti (78%)', coef: 0.78 },
   { id: 'artigiani_imprese', name: 'Artigiani e Imprese (67%)', coef: 0.67 },
@@ -24,1333 +44,802 @@ export const ATECO_CATEGORIES: AtecoCategory[] = [
   { id: 'commercio_ambulante_non_alim', name: 'Commercio ambulante altri prodotti (54%)', coef: 0.54 },
   { id: 'costruzioni_immobiliari', name: 'Costruzioni e immobiliari (86%)', coef: 0.86 },
   { id: 'intermediari', name: 'Intermediari del commercio (62%)', coef: 0.62 },
+  { id: 'custom', name: 'Coefficiente personalizzato', coef: 0.78 },
 ]
 
-export const ALIQUOTA_INPS_DATORE = 0.2381
+export const ALIQUOTA_INPS_DATORE = FISCAL_RULES_2026.employee.estimatedEmployerContributionRate
+
+const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100
 
 export const useTaxStore = defineStore('taxStore', () => {
-  // Global Variables
-  const fatturato = ref(50000)
+  const fiscalYear = ref<FiscalYear>(FISCAL_YEAR)
+  const fatturato = ref(50_000)
   const inputMode = ref<'fatturato' | 'ral'>('fatturato')
-  const advancedMode = ref(false) // Sostituisce expensesMode come stato primario
-
-  // Effective fatturato for P.IVA cards: in RAL mode, convert RAL to fatturato equivalente
-  const effectiveFatturato = computed(() => {
-    if (inputMode.value === 'ral') return fatturato.value * (1 + ALIQUOTA_INPS_DATORE)
-    return fatturato.value
-  })
-  const speseDeducibili = ref(5000)
+  const advancedMode = ref(false)
+  const costiOperativiReali = ref(5_000)
+  const costiFiscalmenteDeducibili = ref(5_000)
   const speseDetraibili = ref(0)
   const atecoCategory = ref('professionisti')
-  const atecoCoef = ref(0.78) // default 78% for professionisti
-  const mesiParagone = ref(12) // Default a 12 mensilità
+  const atecoCoef = ref(0.78)
+  const mesiParagone = ref(12)
 
-  // Lavoro Dipendente Parallelo
   const hasLavoroDipendente = ref(false)
   const ralDipendente = ref(0)
+  const redditoDipendentePrecedente = ref(0)
   const dipendenteFullTime = ref(false)
+  const aliquotaInpsDipendente = ref(FISCAL_RULES_2026.employee.estimatedContributionRate * 100)
+  const aliquotaContributivaDatore = ref(FISCAL_RULES_2026.employee.estimatedEmployerContributionRate * 100)
 
-  // Addizionali (IRPEF Ordinario/SRL)
-  const addizionaleRegionale = ref(1.73) // Default (es. media Lombardia)
-  const addizionaleComunale = ref(0.8)   // Default (es. media Milano/Grandi Comuni)
+  const addizionaleRegionale = ref(FISCAL_RULES_2026.localTaxes.estimatedRegionalRate)
+  const addizionaleComunale = ref(FISCAL_RULES_2026.localTaxes.estimatedMunicipalRate)
+  const massimaleInps = ref(FISCAL_RULES_2026.inps.gestioneSeparata.maximumIncome)
+  const businessEnrollment = ref<EnrollmentStatus>('unknown')
 
-  // Massimale INPS
-  const massimaleInps = ref(119650)      // Default 2025
-
-  // Visibilità Regimi
   const showForfettario = ref(true)
   const showOrdinario = ref(true)
   const showSrl = ref(true)
   const showDipendente = ref(true)
-
-  // Ordine delle Card
   const cardOrder = ref<string[]>(['forfettario', 'ordinario', 'srl', 'dipendente'])
 
-  // Sostituisce expensesMode mantenendo retrocompatibilità
+  const forfettarioCassa = ref<PrevidentialFund>('gestione_separata')
+  const forfettarioStartup = ref(false)
+  const forfettarioContributionRelief = ref<ContributionRelief>('none')
+
+  const ordinarioCassa = ref<PrevidentialFund>('gestione_separata')
+  const ordinarioContributionRelief = ref<ContributionRelief>('none')
+
+  const srlDistribuzione = ref<'compenso' | 'utili'>('compenso')
+  const srlCostiFissi = ref(FISCAL_RULES_2026.srl.estimatedFixedCosts)
+  const srlSocioLavoratore = ref(false)
+  const srlSocioCassa = ref<BusinessFund>('artigiani')
+  const srlContributionRelief = ref<ContributionRelief>('none')
+
   const expensesMode = computed({
     get: () => advancedMode.value ? 'advanced' : 'simple',
-    set: (val: 'simple' | 'advanced') => {
-      advancedMode.value = (val === 'advanced')
-    }
+    set: (value: 'simple' | 'advanced') => { advancedMode.value = value === 'advanced' },
   })
 
-  // Sync category selection to coefficient
-  watch(atecoCategory, (newCatId) => {
-    const cat = ATECO_CATEGORIES.find(c => c.id === newCatId)
-    if (cat) {
-      atecoCoef.value = cat.coef
-    }
-  })
-
-  // Forfettario Config
-  const forfettarioCassa = ref<'gestione_separata' | 'artigiani'>('gestione_separata')
-  const forfettarioStartup = ref(true) // 5% vs 15%
-  const forfettarioRiduzione35 = ref(false)
-  const forfettarioRiduzione50 = ref(false)
-
-  // Ordinario Config
-  const ordinarioCassa = ref<'gestione_separata' | 'artigiani'>('gestione_separata')
-  const ordinarioRiduzione50 = ref(false)
-
-  // SRL Config
-  const srlDistribuzione = ref<'compenso' | 'utili'>('compenso')
-  const srlCassa = ref<'gestione_separata' | 'artigiani'>('gestione_separata')
-  const srlRiduzione50 = ref(false)
-
-  // Persist to LocalStorage
-  const loadState = () => {
-    const saved = localStorage.getItem('taxgrid_state')
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved)
-        fatturato.value = parsed.fatturato ?? fatturato.value
-        inputMode.value = parsed.inputMode ?? inputMode.value
-        
-        if (parsed.advancedMode !== undefined) {
-          advancedMode.value = parsed.advancedMode
-        } else if (parsed.expensesMode !== undefined) {
-          advancedMode.value = parsed.expensesMode === 'advanced'
-        } else {
-          advancedMode.value = false
-        }
-        
-        speseDeducibili.value = parsed.speseDeducibili ?? parsed.spese ?? speseDeducibili.value
-        speseDetraibili.value = parsed.speseDetraibili ?? speseDetraibili.value
-        atecoCoef.value = parsed.atecoCoef ?? atecoCoef.value
-        
-        if (parsed.atecoCategory) {
-          atecoCategory.value = parsed.atecoCategory
-        } else if (parsed.atecoCoef !== undefined) {
-          const matchingCat = ATECO_CATEGORIES.find(c => c.coef === parsed.atecoCoef)
-          if (matchingCat) {
-            atecoCategory.value = matchingCat.id
-          }
-        }
-
-        forfettarioCassa.value = parsed.forfettarioCassa ?? forfettarioCassa.value
-        forfettarioStartup.value = parsed.forfettarioStartup ?? forfettarioStartup.value
-        forfettarioRiduzione35.value = parsed.forfettarioRiduzione35 ?? forfettarioRiduzione35.value
-        forfettarioRiduzione50.value = parsed.forfettarioRiduzione50 ?? forfettarioRiduzione50.value
-        ordinarioCassa.value = parsed.ordinarioCassa ?? ordinarioCassa.value
-        ordinarioRiduzione50.value = parsed.ordinarioRiduzione50 ?? ordinarioRiduzione50.value
-        srlDistribuzione.value = parsed.srlDistribuzione ?? srlDistribuzione.value
-        srlCassa.value = parsed.srlCassa ?? srlCassa.value
-        srlRiduzione50.value = parsed.srlRiduzione50 ?? srlRiduzione50.value
-        mesiParagone.value = parsed.mesiParagone ?? mesiParagone.value
-
-        // New properties:
-        hasLavoroDipendente.value = parsed.hasLavoroDipendente ?? hasLavoroDipendente.value
-        ralDipendente.value = parsed.ralDipendente ?? ralDipendente.value
-        dipendenteFullTime.value = parsed.dipendenteFullTime ?? dipendenteFullTime.value
-        addizionaleRegionale.value = parsed.addizionaleRegionale ?? addizionaleRegionale.value
-        addizionaleComunale.value = parsed.addizionaleComunale ?? addizionaleComunale.value
-        massimaleInps.value = parsed.massimaleInps ?? massimaleInps.value
-
-        showForfettario.value = parsed.showForfettario ?? showForfettario.value
-        showOrdinario.value = parsed.showOrdinario ?? showOrdinario.value
-        showSrl.value = parsed.showSrl ?? showSrl.value
-        showDipendente.value = parsed.showDipendente ?? showDipendente.value
-        cardOrder.value = parsed.cardOrder ?? cardOrder.value
-      } catch (e) {
-        console.error('Failed to load state', e)
-      }
-    }
-  }
-
-  loadState()
-
-  const applyUrlState = () => {
-    if (typeof window === 'undefined') return
-
-    const params = new URLSearchParams(window.location.search)
-    const dataParam = params.get('data')
-    if (!dataParam) return
-
-    try {
-      const parsed = JSON.parse(atob(dataParam))
-
-      if (parsed.fatturato !== undefined) fatturato.value = Number(parsed.fatturato)
-      if (parsed.inputMode !== undefined) inputMode.value = parsed.inputMode === 'ral' ? 'ral' : 'fatturato'
-      if (parsed.advancedMode !== undefined) advancedMode.value = Boolean(parsed.advancedMode)
-      if (parsed.speseDeducibili !== undefined) speseDeducibili.value = Number(parsed.speseDeducibili)
-      if (parsed.speseDetraibili !== undefined) speseDetraibili.value = Number(parsed.speseDetraibili)
-      if (parsed.atecoCategory !== undefined) atecoCategory.value = String(parsed.atecoCategory)
-      if (parsed.atecoCoef !== undefined) atecoCoef.value = Number(parsed.atecoCoef)
-      if (parsed.forfettarioCassa !== undefined) forfettarioCassa.value = parsed.forfettarioCassa
-      if (parsed.forfettarioStartup !== undefined) forfettarioStartup.value = Boolean(parsed.forfettarioStartup)
-      if (parsed.forfettarioRiduzione35 !== undefined) forfettarioRiduzione35.value = Boolean(parsed.forfettarioRiduzione35)
-      if (parsed.forfettarioRiduzione50 !== undefined) forfettarioRiduzione50.value = Boolean(parsed.forfettarioRiduzione50)
-      if (parsed.ordinarioCassa !== undefined) ordinarioCassa.value = parsed.ordinarioCassa
-      if (parsed.ordinarioRiduzione50 !== undefined) ordinarioRiduzione50.value = Boolean(parsed.ordinarioRiduzione50)
-      if (parsed.srlDistribuzione !== undefined) srlDistribuzione.value = parsed.srlDistribuzione
-      if (parsed.srlCassa !== undefined) srlCassa.value = parsed.srlCassa
-      if (parsed.srlRiduzione50 !== undefined) srlRiduzione50.value = Boolean(parsed.srlRiduzione50)
-      if (parsed.mesiParagone !== undefined) mesiParagone.value = Number(parsed.mesiParagone)
-      if (parsed.hasLavoroDipendente !== undefined) hasLavoroDipendente.value = Boolean(parsed.hasLavoroDipendente)
-      if (parsed.ralDipendente !== undefined) ralDipendente.value = Number(parsed.ralDipendente)
-      if (parsed.dipendenteFullTime !== undefined) dipendenteFullTime.value = Boolean(parsed.dipendenteFullTime)
-      if (parsed.addizionaleRegionale !== undefined) addizionaleRegionale.value = Number(parsed.addizionaleRegionale)
-      if (parsed.addizionaleComunale !== undefined) addizionaleComunale.value = Number(parsed.addizionaleComunale)
-      if (parsed.massimaleInps !== undefined) massimaleInps.value = Number(parsed.massimaleInps)
-      if (parsed.showForfettario !== undefined) showForfettario.value = Boolean(parsed.showForfettario)
-      if (parsed.showOrdinario !== undefined) showOrdinario.value = Boolean(parsed.showOrdinario)
-      if (parsed.showSrl !== undefined) showSrl.value = Boolean(parsed.showSrl)
-      if (parsed.showDipendente !== undefined) showDipendente.value = Boolean(parsed.showDipendente)
-      if (parsed.cardOrder !== undefined) cardOrder.value = parsed.cardOrder
-    } catch (e) {
-      console.error('Failed to parse URL state', e)
-    }
-  }
-
-  applyUrlState()
-
-  const buildShareUrl = () => {
-    if (typeof window === 'undefined') return 'https://taxgrid.it'
-
-    const state = {
-      fatturato: fatturato.value,
-      inputMode: inputMode.value,
-      advancedMode: advancedMode.value,
-      speseDeducibili: speseDeducibili.value,
-      speseDetraibili: speseDetraibili.value,
-      atecoCategory: atecoCategory.value,
-      atecoCoef: atecoCoef.value,
-      forfettarioCassa: forfettarioCassa.value,
-      forfettarioStartup: forfettarioStartup.value,
-      forfettarioRiduzione35: forfettarioRiduzione35.value,
-      forfettarioRiduzione50: forfettarioRiduzione50.value,
-      ordinarioCassa: ordinarioCassa.value,
-      ordinarioRiduzione50: ordinarioRiduzione50.value,
-      srlDistribuzione: srlDistribuzione.value,
-      srlCassa: srlCassa.value,
-      srlRiduzione50: srlRiduzione50.value,
-      mesiParagone: mesiParagone.value,
-      hasLavoroDipendente: hasLavoroDipendente.value,
-      ralDipendente: ralDipendente.value,
-      dipendenteFullTime: dipendenteFullTime.value,
-      addizionaleRegionale: addizionaleRegionale.value,
-      addizionaleComunale: addizionaleComunale.value,
-      massimaleInps: massimaleInps.value,
-      showForfettario: showForfettario.value,
-      showOrdinario: showOrdinario.value,
-      showSrl: showSrl.value,
-      showDipendente: showDipendente.value,
-      cardOrder: cardOrder.value
-    }
-
-    const json = JSON.stringify(state)
-    const encoded = btoa(json)
-    const url = new URL(window.location.href)
-    url.search = ''
-    url.searchParams.set('data', encoded)
-    return url.toString()
-  }
-
-  watch(
-    [
-      fatturato, inputMode, advancedMode, speseDeducibili, speseDetraibili, atecoCategory, atecoCoef,
-      forfettarioCassa, forfettarioStartup, forfettarioRiduzione35, forfettarioRiduzione50,
-      ordinarioCassa, ordinarioRiduzione50,
-      srlDistribuzione, srlCassa, srlRiduzione50,
-      mesiParagone, hasLavoroDipendente, ralDipendente, dipendenteFullTime,
-      addizionaleRegionale, addizionaleComunale, massimaleInps,
-      showForfettario, showOrdinario, showSrl, showDipendente, cardOrder
-    ],
-    () => {
-      localStorage.setItem('taxgrid_state', JSON.stringify({
-        fatturato: fatturato.value,
-        inputMode: inputMode.value,
-        advancedMode: advancedMode.value,
-        speseDeducibili: speseDeducibili.value,
-        speseDetraibili: speseDetraibili.value,
-        atecoCategory: atecoCategory.value,
-        atecoCoef: atecoCoef.value,
-        forfettarioCassa: forfettarioCassa.value,
-        forfettarioStartup: forfettarioStartup.value,
-        forfettarioRiduzione35: forfettarioRiduzione35.value,
-        forfettarioRiduzione50: forfettarioRiduzione50.value,
-        ordinarioCassa: ordinarioCassa.value,
-        ordinarioRiduzione50: ordinarioRiduzione50.value,
-        srlDistribuzione: srlDistribuzione.value,
-        srlCassa: srlCassa.value,
-        srlRiduzione50: srlRiduzione50.value,
-        mesiParagone: mesiParagone.value,
-        hasLavoroDipendente: hasLavoroDipendente.value,
-        ralDipendente: ralDipendente.value,
-        dipendenteFullTime: dipendenteFullTime.value,
-        addizionaleRegionale: addizionaleRegionale.value,
-        addizionaleComunale: addizionaleComunale.value,
-        massimaleInps: massimaleInps.value,
-        showForfettario: showForfettario.value,
-        showOrdinario: showOrdinario.value,
-        showSrl: showSrl.value,
-        showDipendente: showDipendente.value,
-        cardOrder: cardOrder.value
-      }))
+  // Alias retrocompatibile: il nuovo codice usa i due campi espliciti.
+  const speseDeducibili = computed({
+    get: () => advancedMode.value ? costiFiscalmenteDeducibili.value : costiOperativiReali.value,
+    set: (value: number) => {
+      costiOperativiReali.value = Number(value)
+      costiFiscalmenteDeducibili.value = Number(value)
     },
-    { deep: true }
-  )
+  })
 
-  // Calculations: Forfettario
+  const forfettarioRiduzione35 = computed({
+    get: () => forfettarioContributionRelief.value === 'forfettario_35',
+    set: (active: boolean) => { forfettarioContributionRelief.value = active ? 'forfettario_35' : 'none' },
+  })
+  const forfettarioRiduzione50 = computed({
+    get: () => ['pensioner_50', 'new_entrant_2025_50'].includes(forfettarioContributionRelief.value),
+    set: (active: boolean) => { forfettarioContributionRelief.value = active ? 'pensioner_50' : 'none' },
+  })
+  const ordinarioRiduzione50 = computed({
+    get: () => ['pensioner_50', 'new_entrant_2025_50'].includes(ordinarioContributionRelief.value),
+    set: (active: boolean) => { ordinarioContributionRelief.value = active ? 'pensioner_50' : 'none' },
+  })
+  const srlRiduzione50 = computed({
+    get: () => ['pensioner_50', 'new_entrant_2025_50'].includes(srlContributionRelief.value),
+    set: (active: boolean) => { srlContributionRelief.value = active ? 'pensioner_50' : 'none' },
+  })
+  const srlCassa = computed({
+    get: (): PrevidentialFund => srlSocioLavoratore.value ? srlSocioCassa.value : 'gestione_separata',
+    set: (fund: PrevidentialFund) => {
+      srlSocioLavoratore.value = fund !== 'gestione_separata'
+      if (fund !== 'gestione_separata') srlSocioCassa.value = fund
+    },
+  })
+
+  const employerContributionRate = computed(() => Math.max(aliquotaContributivaDatore.value, 0) / 100)
+  const employeeContributionRate = computed(() => Math.max(aliquotaInpsDipendente.value, 0) / 100)
+  const effectiveFatturato = computed(() => inputMode.value === 'ral'
+    ? fatturato.value * (1 + employerContributionRate.value)
+    : fatturato.value)
+  const deductibleCosts = computed(() => advancedMode.value
+    ? costiFiscalmenteDeducibili.value
+    : costiOperativiReali.value)
+  const hasJob = computed(() => advancedMode.value && hasLavoroDipendente.value)
+  const employeeTaxableIncome = computed(() => hasJob.value
+    ? Math.max(ralDipendente.value * (1 - employeeContributionRate.value), 0)
+    : 0)
+  const genericTaxCredits = computed(() => advancedMode.value
+    ? Math.max(speseDetraibili.value, 0) * FISCAL_RULES_2026.irpef.genericExpenseCreditRate
+    : 0)
+  const regionalRate = computed(() => advancedMode.value ? addizionaleRegionale.value : 0)
+  const municipalRate = computed(() => advancedMode.value ? addizionaleComunale.value : 0)
+  const contributionCap = computed(() => advancedMode.value
+    ? Math.max(massimaleInps.value, 0)
+    : FISCAL_RULES_2026.inps.gestioneSeparata.maximumIncome)
+
+  watch(atecoCategory, (categoryId) => {
+    if (categoryId === 'custom') return
+    const category = ATECO_CATEGORIES.find((item) => item.id === categoryId)
+    if (category) atecoCoef.value = category.coef
+  })
+
+  watch(forfettarioCassa, (fund) => {
+    if (fund === 'gestione_separata') forfettarioContributionRelief.value = 'none'
+  })
+  watch(forfettarioContributionRelief, (relief) => {
+    if (relief !== 'none' && forfettarioCassa.value === 'gestione_separata') forfettarioContributionRelief.value = 'none'
+  })
+  watch(ordinarioCassa, (fund) => {
+    if (fund === 'gestione_separata') ordinarioContributionRelief.value = 'none'
+  })
+  watch(ordinarioContributionRelief, (relief) => {
+    if (relief !== 'none' && ordinarioCassa.value === 'gestione_separata') ordinarioContributionRelief.value = 'none'
+  })
+
+  const applyContributionBreakdown = (
+    steps: BreakdownStep[],
+    fund: PrevidentialFund,
+    result: ReturnType<typeof calculateBusinessContributions>,
+    relief: ContributionRelief,
+  ) => {
+    if (fund === 'gestione_separata') {
+      steps.push({
+        label: `INPS Gestione Separata (${(result.rate * 100).toFixed(2)}%)`,
+        value: result.total,
+        operator: '-',
+        details: hasJob.value
+          ? 'Aliquota ridotta al 24% per la presenza di altra copertura previdenziale obbligatoria.'
+          : `Contributi calcolati fino al massimale 2026 di € ${result.maximumIncome.toLocaleString('it-IT')}.`,
+      })
+      return
+    }
+
+    const label = fund === 'artigiani' ? 'Artigiani' : 'Commercianti'
+    if (businessEnrollment.value === 'not_required') {
+      steps.push({ label: `INPS ${label}`, value: 0, operator: '-', details: 'Iscrizione indicata come non dovuta dall’utente.' })
+      return
+    }
+    steps.push({
+      label: `INPS ${label} — contributo minimale`,
+      value: result.minimumContribution,
+      operator: '-',
+      details: `Contributo minimo 2026 dovuto fino al reddito minimale di € ${FISCAL_RULES_2026.inps.business[fund].minimumIncome.toLocaleString('it-IT')}.`,
+    })
+    if (result.firstBracketContribution > 0) {
+      steps.push({
+        label: `INPS ${label} — eccedenza al ${(FISCAL_RULES_2026.inps.business[fund].baseRate * 100).toFixed(2)}%`,
+        value: result.firstBracketContribution,
+        operator: '-',
+        details: `Quota oltre il minimale e fino a € ${FISCAL_RULES_2026.inps.business[fund].firstBracketLimit.toLocaleString('it-IT')}.`,
+      })
+    }
+    if (result.upperBracketContribution > 0) {
+      steps.push({
+        label: `INPS ${label} — secondo scaglione al ${(FISCAL_RULES_2026.inps.business[fund].upperRate * 100).toFixed(2)}%`,
+        value: result.upperBracketContribution,
+        operator: '-',
+        details: `Aliquota maggiorata di un punto oltre € ${FISCAL_RULES_2026.inps.business[fund].firstBracketLimit.toLocaleString('it-IT')}.`,
+      })
+    }
+    if (result.reliefAmount > 0) {
+      const reliefLabels: Record<Exclude<ContributionRelief, 'none'>, string> = {
+        forfettario_35: 'Regime previdenziale forfettario −35%',
+        pensioner_50: 'Pensionato INPS over 65 −50%',
+        new_entrant_2025_50: 'Neo-iscritto 2025 −50%',
+      }
+      steps.push({ label: reliefLabels[relief as Exclude<ContributionRelief, 'none'>], value: result.reliefAmount, operator: '+' })
+    }
+  }
+
+  const forfettarioStatus = computed(() => {
+    const revenue = effectiveFatturato.value
+    if (revenue > FISCAL_RULES_2026.forfettario.immediateExitThreshold) {
+      return { level: 'error' as const, label: 'Uscita immediata dal regime' }
+    }
+    if (revenue > FISCAL_RULES_2026.forfettario.ordinaryRevenueThreshold) {
+      return { level: 'warning' as const, label: 'Superamento soglia ordinaria' }
+    }
+    return { level: 'ok' as const, label: 'Regime applicabile per soglia ricavi' }
+  })
+
   const forfettarioResult = computed(() => {
-    const effFatt = effectiveFatturato.value
-    const imponibile = effFatt * atecoCoef.value
-    let inps = 0
-    
-    const hasJob = advancedMode.value && hasLavoroDipendente.value
-    const isFullTime = hasJob && dipendenteFullTime.value
-    const capInps = advancedMode.value ? massimaleInps.value : 119650
-    
-    let aliquotaGs = 0.2607
-    let inpsMinimale = 4208
-    let redditoEccedente = 0
-    let inpsEccedente = 0
-    
-    if (forfettarioCassa.value === 'gestione_separata') {
-      aliquotaGs = hasJob ? 0.24 : 0.2607
-      const imponibileInps = Math.min(imponibile, capInps)
-      inps = imponibileInps * aliquotaGs
-    } else {
-      if (isFullTime) {
-        inps = 0
-      } else {
-        const imponibileInps = Math.min(imponibile, capInps)
-        redditoEccedente = Math.max(imponibileInps - 17504, 0)
-        inpsEccedente = redditoEccedente * 0.24
-        inps = inpsMinimale + inpsEccedente
+    const revenue = Math.max(effectiveFatturato.value, 0)
+    const taxableGross = revenue * Math.max(atecoCoef.value, 0)
+    const contributions = calculateBusinessContributions({
+      income: taxableGross,
+      fund: forfettarioCassa.value,
+      hasOtherCoverage: hasJob.value,
+      enrollment: businessEnrollment.value,
+      relief: forfettarioContributionRelief.value,
+      maximumIncomeOverride: contributionCap.value,
+    })
+    const taxableNet = Math.max(taxableGross - contributions.total, 0)
+    const taxRate = forfettarioStartup.value
+      ? FISCAL_RULES_2026.forfettario.startupRate
+      : FISCAL_RULES_2026.forfettario.ordinaryRate
+    const taxes = taxableNet * taxRate
+    const netBeforeCosts = revenue - contributions.total - taxes
+    const net = Math.max(netBeforeCosts - Math.max(costiOperativiReali.value, 0), 0)
 
-        if (forfettarioRiduzione35.value) {
-          inps = inps * 0.65
-        } else if (forfettarioRiduzione50.value) {
-          inps = inps * 0.50
-        }
-      }
-    }
-    
-    // Tasse
-    const imponibileNetto = Math.max(imponibile - inps, 0)
-    const taxRate = forfettarioStartup.value ? 0.05 : 0.15
-    const tasse = imponibileNetto * taxRate
-    
-    const nettoFiscale = effFatt - inps - tasse
-    const netto = Math.max(nettoFiscale - speseDeducibili.value, 0)
-    const nettoMensile = netto / mesiParagone.value
-    
-    // Construct breakdown steps
     const steps: BreakdownStep[] = [
-      { label: 'Fatturato Annuo', value: effFatt, operator: '+' },
-      { label: `Imponibile Lordo (ATECO ${(atecoCoef.value * 100).toFixed(0)}%)`, value: imponibile, operator: '*', details: 'Fatturato × Coefficiente di redditività del codice ATECO' }
+      { label: 'Fatturato annuo', value: revenue, operator: '+' },
+      { label: `Imponibile lordo ATECO (${(atecoCoef.value * 100).toFixed(0)}%)`, value: taxableGross, operator: '*' },
     ]
-    
-    if (forfettarioCassa.value === 'gestione_separata') {
-      const gsPercent = (aliquotaGs * 100).toFixed(2)
-      steps.push({
-        label: `INPS Gestione Separata (${gsPercent}%)`,
-        value: inps,
-        operator: '-',
-        details: isFullTime 
-          ? `Non dovuto per dipendente full-time`
-          : (imponibile > capInps 
-              ? `Calcolato al ${gsPercent}% su imponibile limitato al massimale di € ${capInps.toLocaleString('it-IT')}` 
-              : `Calcolato al ${gsPercent}% su imponibile di € ${imponibile.toLocaleString('it-IT')}`)
-      })
-    } else {
-      if (isFullTime) {
-        steps.push({
-          label: 'INPS Artigiani/Commercianti',
-          value: 0,
-          operator: '-',
-          details: 'Esonero totale dovuto a impiego dipendente full-time'
-        })
-      } else {
-        steps.push({
-          label: 'INPS quota Minimale (sotto € 17.504)',
-          value: inpsMinimale,
-          operator: '-',
-          details: 'Contributo minimale fisso dovuto alla gestione Artigiani/Commercianti'
-        })
-        if (redditoEccedente > 0) {
-          steps.push({
-            label: 'INPS quota Eccedente (24% oltre € 17.504)',
-            value: inpsEccedente,
-            operator: '-',
-            details: `24% applicato su reddito eccedente di € ${redditoEccedente.toLocaleString('it-IT')} (fino al massimale)`
-          })
-        }
-        if (forfettarioRiduzione35.value) {
-          const riduzioneVal = (inpsMinimale + inpsEccedente) * 0.35
-          steps.push({
-            label: 'Riduzione Artigiani 35% (Regime Agevolato)',
-            value: riduzioneVal,
-            operator: '+',
-            details: 'Sconto del 35% su contributi previdenziali per regime forfettario'
-          })
-        } else if (forfettarioRiduzione50.value) {
-          const riduzioneVal = (inpsMinimale + inpsEccedente) * 0.50
-          steps.push({
-            label: 'Riduzione INPS 50%',
-            value: riduzioneVal,
-            operator: '+',
-            details: 'Sconto del 50% per pensionati over 65 o requisiti specifici'
-          })
-        }
-      }
-    }
-    
+    applyContributionBreakdown(steps, forfettarioCassa.value, contributions, forfettarioContributionRelief.value)
+    steps.push({ label: 'Imponibile fiscale netto', value: taxableNet, operator: '=' })
     steps.push({
-      label: 'Imponibile Fiscale Netto',
-      value: imponibileNetto,
-      operator: '=',
-      details: 'Imponibile Lordo ATECO meno contributi INPS dovuti'
-    })
-    
-    steps.push({
-      label: `Imposta Sostitutiva (${(taxRate * 100).toFixed(0)}%)`,
-      value: tasse,
+      label: `Imposta sostitutiva (${(taxRate * 100).toFixed(0)}%)`,
+      value: taxes,
       operator: '-',
-      details: forfettarioStartup.value 
-        ? `Aliquota agevolata del 5% per start-up (primi 5 anni)` 
-        : `Aliquota ordinaria del 15%`
+      details: forfettarioStartup.value
+        ? 'Aliquota 5% applicata sulla base della dichiarazione dell’utente di possedere tutti i requisiti startup.'
+        : 'Aliquota ordinaria del regime forfettario.',
     })
-    
-    if (speseDeducibili.value > 0) {
-      steps.push({
-        label: 'Netto Fiscale (al lordo spese)',
-        value: nettoFiscale,
-        operator: '=',
-        details: 'Risultato del calcolo fiscale prima della sottrazione delle spese vive non deducibili'
-      })
-      steps.push({
-        label: 'Spese (non deducibili)',
-        value: speseDeducibili.value,
-        operator: '-',
-        details: 'In regime forfettario le spese non sono fiscalmente deducibili: vengono sottratte dal netto dopo il calcolo delle imposte, per un confronto equo con gli altri regimi'
-      })
+    steps.push({ label: 'Netto fiscale prima dei costi reali', value: netBeforeCosts, operator: '=' })
+    if (costiOperativiReali.value > 0) {
+      steps.push({ label: 'Costi operativi reali (non deducibili)', value: costiOperativiReali.value, operator: '-' })
     }
-    
-    steps.push({
-      label: 'Netto Finale',
-      value: netto,
-      operator: '=',
-      details: speseDeducibili.value > 0
-        ? 'Fatturato Annuo meno INPS, Imposta Sostitutiva e Spese non deducibili'
-        : 'Fatturato Annuo meno INPS e Imposta Sostitutiva'
-    })
-    
-    return { inps, tasse, netto, nettoMensile, breakdown: { steps } }
+    steps.push({ label: 'Netto finale', value: net, operator: '=' })
+
+    return {
+      inps: contributions.total,
+      tasse: taxes,
+      netto: net,
+      nettoMensile: net / Math.max(mesiParagone.value, 1),
+      taxableIncome: taxableNet,
+      status: forfettarioStatus.value,
+      breakdown: { steps },
+    }
   })
 
-  // Calculations: Ordinario
   const ordinarioResult = computed(() => {
-    const effFatt = effectiveFatturato.value
-    const imponibileBase = Math.max(effFatt - speseDeducibili.value, 0)
-    let inps = 0
-    
-    const hasJob = advancedMode.value && hasLavoroDipendente.value
-    const isFullTime = hasJob && dipendenteFullTime.value
-    const capInps = advancedMode.value ? massimaleInps.value : 119650
-    
-    let aliquotaGs = 0.2607
-    let inpsMinimale = 4208
-    let redditoEccedente = 0
-    let inpsEccedente = 0
-    
-    if (ordinarioCassa.value === 'gestione_separata') {
-      aliquotaGs = hasJob ? 0.24 : 0.2607
-      const imponibileInps = Math.min(imponibileBase, capInps)
-      inps = imponibileInps * aliquotaGs
-    } else {
-      if (isFullTime) {
-        inps = 0
-      } else {
-        const imponibileInps = Math.min(imponibileBase, capInps)
-        redditoEccedente = Math.max(imponibileInps - 17504, 0)
-        inpsEccedente = redditoEccedente * 0.24
-        inps = inpsMinimale + inpsEccedente
-
-        if (ordinarioRiduzione50.value) {
-          inps = inps * 0.50
-        }
-      }
-    }
-
-    const imponibilePivaFiscale = Math.max(imponibileBase - inps, 0)
-    const ral = hasJob ? ralDipendente.value : 0
-    const imponibileTotale = imponibilePivaFiscale + ral
-
-    const irpefCumulativa = calcolaIrpefLorda(imponibileTotale)
-    const irpefGiaPagataSuRal = ral > 0 ? calcolaIrpefLorda(ral) : 0
-    const irpefLordaImpresa = irpefCumulativa - irpefGiaPagataSuRal
-
-    const scontoDetraibili = advancedMode.value ? speseDetraibili.value * 0.19 : 0
-    const irpefNetta = Math.max(irpefLordaImpresa - scontoDetraibili, 0)
-
-    const addizionaleRegionaleVal = advancedMode.value ? addizionaleRegionale.value : 0
-    const addizionaleComunaleVal = advancedMode.value ? addizionaleComunale.value : 0
-    const tasseRegionali = imponibilePivaFiscale * (addizionaleRegionaleVal / 100)
-    const tasseComunali = imponibilePivaFiscale * (addizionaleComunaleVal / 100)
-
-    const tasseTotali = irpefNetta + tasseRegionali + tasseComunali
-
-    const netto = effFatt - speseDeducibili.value - inps - tasseTotali
-    const nettoMensile = netto / mesiParagone.value
+    const revenue = Math.max(effectiveFatturato.value, 0)
+    const realCosts = Math.max(costiOperativiReali.value, 0)
+    const fiscalCosts = Math.max(deductibleCosts.value, 0)
+    const contributionIncome = Math.max(revenue - fiscalCosts, 0)
+    const contributions = calculateBusinessContributions({
+      income: contributionIncome,
+      fund: ordinarioCassa.value,
+      hasOtherCoverage: hasJob.value,
+      enrollment: businessEnrollment.value,
+      relief: ordinarioContributionRelief.value,
+      maximumIncomeOverride: contributionCap.value,
+    })
+    const businessTaxableIncome = Math.max(contributionIncome - contributions.total, 0)
+    const basePosition = calculatePersonalTaxPosition({
+      employeeTaxableIncome: employeeTaxableIncome.value,
+      genericTaxCredits: genericTaxCredits.value,
+      regionalRatePercent: regionalRate.value,
+      municipalRatePercent: municipalRate.value,
+    })
+    const combinedPosition = calculatePersonalTaxPosition({
+      employeeTaxableIncome: employeeTaxableIncome.value,
+      otherTaxableIncome: businessTaxableIncome,
+      genericTaxCredits: genericTaxCredits.value,
+      regionalRatePercent: regionalRate.value,
+      municipalRatePercent: municipalRate.value,
+    })
+    const incrementalTaxes = combinedPosition.totalTaxes - basePosition.totalTaxes
+    const net = revenue - realCosts - contributions.total - incrementalTaxes
 
     const steps: BreakdownStep[] = [
-      { label: 'Fatturato Annuo', value: effFatt, operator: '+' },
-      { 
-        label: 'Spese Deducibili', 
-        value: speseDeducibili.value, 
-        operator: '-', 
-        details: advancedMode.value 
-          ? 'Spese deducibili inserite nei parametri avanzati' 
-          : 'Spese deducibili dichiarate' 
-      },
-      { label: 'Imponibile Base (Fatturato - Spese)', value: imponibileBase, operator: '=' }
+      { label: 'Fatturato annuo', value: revenue, operator: '+' },
+      { label: 'Costi fiscalmente deducibili', value: fiscalCosts, operator: '-' },
+      { label: 'Reddito prima dei contributi', value: contributionIncome, operator: '=' },
+    ]
+    applyContributionBreakdown(steps, ordinarioCassa.value, contributions, ordinarioContributionRelief.value)
+    steps.push({ label: 'Imponibile fiscale P.IVA', value: businessTaxableIncome, operator: '=' })
+
+    if (hasJob.value) {
+      steps.push({
+        label: 'Imponibile fiscale lavoro dipendente',
+        value: employeeTaxableIncome.value,
+        operator: '+',
+        details: `RAL € ${ralDipendente.value.toLocaleString('it-IT')} meno contributi dipendente stimati al ${aliquotaInpsDipendente.value.toFixed(2)}%.`,
+      })
+      steps.push({ label: 'Imposte posizione solo dipendente', value: basePosition.totalTaxes, operator: '-' })
+      steps.push({ label: 'Imposte posizione complessiva', value: combinedPosition.totalTaxes, operator: '-' })
+    } else {
+      steps.push({
+        label: 'IRPEF lorda',
+        value: combinedPosition.grossIrpef,
+        operator: '-',
+        details: describeProgressiveTax(businessTaxableIncome),
+      })
+    }
+    if (combinedPosition.genericTaxCredits > basePosition.genericTaxCredits) {
+      steps.push({
+        label: 'Detrazioni 19% utilizzate incrementalmente',
+        value: combinedPosition.genericTaxCredits - basePosition.genericTaxCredits,
+        operator: '+',
+        details: 'La detrazione è applicata alla posizione fiscale complessiva e non attribuita integralmente alla P.IVA.',
+      })
+    }
+    steps.push({
+      label: 'Costo fiscale incrementale P.IVA',
+      value: incrementalTaxes,
+      operator: '=',
+      details: 'Differenza tra imposte complessive con e senza reddito P.IVA, incluse detrazioni, trattamento integrativo e addizionali stimate.',
+    })
+    if (realCosts !== fiscalCosts) steps.push({ label: 'Costi operativi reali', value: realCosts, operator: '-' })
+    steps.push({ label: 'Netto in tasca', value: net, operator: '=' })
+
+    return {
+      inps: contributions.total,
+      tasse: incrementalTaxes,
+      netto: net,
+      nettoMensile: net / Math.max(mesiParagone.value, 1),
+      taxableIncome: businessTaxableIncome,
+      baseTaxPosition: basePosition,
+      combinedTaxPosition: combinedPosition,
+      breakdown: { steps },
+    }
+  })
+
+  const solveAdministratorGrossCompensation = (availableCompanyCash: number, companyRate: number) => {
+    const provisional = availableCompanyCash / (1 + companyRate)
+    if (provisional <= contributionCap.value) return provisional
+    return Math.max(availableCompanyCash - contributionCap.value * companyRate, 0)
+  }
+
+  const srlResult = computed(() => {
+    const revenue = Math.max(effectiveFatturato.value, 0)
+    const operatingCosts = Math.max(costiOperativiReali.value, 0)
+    const fixedCosts = Math.max(srlCostiFissi.value, 0)
+    const operatingProfit = Math.max(revenue - operatingCosts - fixedCosts, 0)
+    const steps: BreakdownStep[] = [
+      { label: 'Fatturato annuo SRL', value: revenue, operator: '+' },
+      { label: 'Costi operativi', value: operatingCosts, operator: '-' },
+      { label: 'Costi amministrativi SRL stimati', value: fixedCosts, operator: '-' },
+      { label: 'Risultato operativo stimato', value: operatingProfit, operator: '=' },
     ]
 
-    if (ordinarioCassa.value === 'gestione_separata') {
-      const gsPercent = (aliquotaGs * 100).toFixed(2)
+    const workerContributions = srlSocioLavoratore.value
+      ? calculateBusinessContributions({
+          income: operatingProfit,
+          fund: srlSocioCassa.value,
+          enrollment: businessEnrollment.value,
+          relief: srlContributionRelief.value,
+          maximumIncomeOverride: contributionCap.value,
+        })
+      : null
+
+    let taxes = 0
+    let inps = workerContributions?.total ?? 0
+    let net = 0
+    let ires = 0
+    let irap = 0
+    let dividendTax = 0
+    let administratorCompanyInps = 0
+    let administratorPersonalInps = 0
+    let administratorGrossCompensation = 0
+
+    if (srlDistribuzione.value === 'compenso') {
+      const administratorRules = FISCAL_RULES_2026.inps.gestioneSeparata.administrator
+      const totalRate = hasJob.value ? administratorRules.otherCoverageRate : administratorRules.standardRate
+      const companyRate = totalRate * administratorRules.companyShare
+      administratorGrossCompensation = solveAdministratorGrossCompensation(operatingProfit, companyRate)
+      const administratorContributions = calculateAdministratorContributions(
+        administratorGrossCompensation,
+        hasJob.value,
+        contributionCap.value,
+      )
+      administratorCompanyInps = administratorContributions.company
+      administratorPersonalInps = administratorContributions.administrator
+      inps += administratorContributions.total
+      const administratorTaxableIncome = Math.max(administratorGrossCompensation - administratorPersonalInps, 0)
+      const basePosition = calculatePersonalTaxPosition({
+        employeeTaxableIncome: employeeTaxableIncome.value,
+        genericTaxCredits: genericTaxCredits.value,
+        regionalRatePercent: regionalRate.value,
+        municipalRatePercent: municipalRate.value,
+      })
+      const combinedPosition = calculatePersonalTaxPosition({
+        employeeTaxableIncome: employeeTaxableIncome.value + administratorTaxableIncome,
+        genericTaxCredits: genericTaxCredits.value,
+        regionalRatePercent: regionalRate.value,
+        municipalRatePercent: municipalRate.value,
+      })
+      taxes = combinedPosition.totalTaxes - basePosition.totalTaxes
+      net = administratorGrossCompensation - administratorPersonalInps - taxes - (workerContributions?.total ?? 0)
+
+      steps.push({ label: 'Compenso lordo amministratore', value: administratorGrossCompensation, operator: '=' })
       steps.push({
-        label: `INPS Gestione Separata (${gsPercent}%)`,
-        value: inps,
+        label: `INPS amministratore — quota SRL (${(administratorContributions.companyRate * 100).toFixed(2)}%)`,
+        value: administratorCompanyInps,
         operator: '-',
-        details: isFullTime 
-          ? `Non dovuto per dipendente full-time`
-          : (imponibileBase > capInps 
-              ? `Calcolato al ${gsPercent}% su imponibile limitato al massimale di € ${capInps.toLocaleString('it-IT')}` 
-              : `Calcolato al ${gsPercent}% su imponibile di € ${imponibileBase.toLocaleString('it-IT')}`)
+      })
+      steps.push({
+        label: `INPS amministratore — quota personale (${(administratorContributions.administratorRate * 100).toFixed(2)}%)`,
+        value: administratorPersonalInps,
+        operator: '-',
+        details: `Aliquota totale Gestione Separata amministratori 2026: ${(administratorContributions.totalRate * 100).toFixed(2)}%.`,
+      })
+      steps.push({ label: 'Imponibile fiscale compenso', value: administratorTaxableIncome, operator: '=' })
+      steps.push({
+        label: 'Costo fiscale incrementale compenso',
+        value: taxes,
+        operator: '-',
+        details: 'Differenza fra posizione personale complessiva con e senza compenso amministratore.',
       })
     } else {
-      if (isFullTime) {
-        steps.push({
-          label: 'INPS Artigiani/Commercianti',
-          value: 0,
-          operator: '-',
-          details: 'Esonero totale dovuto a impiego dipendente full-time'
-        })
-      } else {
-        steps.push({
-          label: 'INPS quota Minimale (sotto € 17.504)',
-          value: inpsMinimale,
-          operator: '-',
-          details: 'Contributo minimale fisso dovuto alla gestione Artigiani/Commercianti'
-        })
-        if (redditoEccedente > 0) {
-          steps.push({
-            label: 'INPS quota Eccedente (24% oltre € 17.504)',
-            value: inpsEccedente,
-            operator: '-',
-            details: `24% applicato su reddito eccedente di € ${redditoEccedente.toLocaleString('it-IT')} (fino al massimale)`
-          })
-        }
-        if (ordinarioRiduzione50.value) {
-          const riduzioneVal = (inpsMinimale + inpsEccedente) * 0.50
-          steps.push({
-            label: 'Riduzione INPS 50%',
-            value: riduzioneVal,
-            operator: '+',
-            details: 'Sconto del 50% sui contributi previdenziali Artigiani/Commercianti'
-          })
-        }
-      }
-    }
-
-    steps.push({
-      label: 'Imponibile Fiscale P.IVA (Imponibile Base - INPS)',
-      value: imponibilePivaFiscale,
-      operator: '='
-    })
-
-    if (hasJob && ral > 0) {
+      ires = operatingProfit * FISCAL_RULES_2026.srl.iresRate
+      irap = operatingProfit * FISCAL_RULES_2026.srl.estimatedIrapRate
+      const distributableProfit = Math.max(operatingProfit - ires - irap, 0)
+      dividendTax = distributableProfit * FISCAL_RULES_2026.srl.dividendRate
+      taxes = ires + irap + dividendTax
+      net = distributableProfit - dividendTax - (workerContributions?.total ?? 0)
       steps.push({
-        label: 'Cumulo RAL Lavoro Dipendente',
-        value: ral,
-        operator: '+',
-        details: 'Somma del reddito da dipendente per determinare lo scaglione IRPEF cumulato'
+        label: `IRES (${(FISCAL_RULES_2026.srl.iresRate * 100).toFixed(0)}%)`,
+        value: ires,
+        operator: '-',
+        details: 'Stima su risultato operativo assunto come base imponibile IRES.',
       })
       steps.push({
-        label: 'Imponibile Fiscale Totale (P.IVA + RAL)',
-        value: imponibileTotale,
-        operator: '='
+        label: `IRAP stimata (${(FISCAL_RULES_2026.srl.estimatedIrapRate * 100).toFixed(1)}%)`,
+        value: irap,
+        operator: '-',
+        details: 'Base IRAP reale non modellata: il risultato operativo è usato come proxy semplificata.',
       })
-      steps.push({
-        label: 'IRPEF Lorda Cumulata',
-        value: irpefCumulativa,
-        operator: '',
-        details: descriviIrpefScaglioni(imponibileTotale)
-      })
-      steps.push({
-        label: 'IRPEF Trattenuta su RAL',
-        value: irpefGiaPagataSuRal,
-        operator: '',
-        details: descriviIrpefScaglioni(ral)
-      })
+      steps.push({ label: 'Utile distribuibile stimato', value: distributableProfit, operator: '=' })
+      steps.push({ label: 'Imposta dividendi (26%)', value: dividendTax, operator: '-' })
     }
 
-    steps.push({
-      label: 'IRPEF Lorda di Impresa',
-      value: irpefLordaImpresa,
-      operator: '-',
-      details: hasJob 
-        ? 'Imposta lorda dovuta dall\'impresa (IRPEF Cumulata − IRPEF su RAL)' 
-        : descriviIrpefScaglioni(imponibilePivaFiscale)
-    })
-
-    if (advancedMode.value && speseDetraibili.value > 0) {
-      steps.push({
-        label: `Spese Detraibili (19% di € ${speseDetraibili.value.toLocaleString('it-IT')})`,
-        value: scontoDetraibili,
-        operator: '+',
-        details: 'Sconto d\'imposta (detrazione) del 19% sulle spese detraibili dichiarate'
-      })
+    if (workerContributions) {
+      applyContributionBreakdown(steps, srlSocioCassa.value, workerContributions, srlContributionRelief.value)
     }
+    steps.push({ label: 'Netto in tasca socio/amministratore', value: net, operator: '=' })
 
-    steps.push({
-      label: 'IRPEF Netta',
-      value: irpefNetta,
-      operator: '='
-    })
-
-    if (advancedMode.value) {
-      if (tasseRegionali > 0) {
-        steps.push({
-          label: `Addizionale Regionale (${addizionaleRegionaleVal}%)`,
-          value: tasseRegionali,
-          operator: '-',
-          details: `Calcolata su imponibile P.IVA di € ${imponibilePivaFiscale.toLocaleString('it-IT')}`
-        })
-      }
-      if (tasseComunali > 0) {
-        steps.push({
-          label: `Addizionale Comunale (${addizionaleComunaleVal}%)`,
-          value: tasseComunali,
-          operator: '-',
-          details: `Calcolata su imponibile P.IVA di € ${imponibilePivaFiscale.toLocaleString('it-IT')}`
-        })
-      }
-    }
-
-    steps.push({
-      label: 'Netto in Tasca',
-      value: netto,
-      operator: '=',
-      details: 'Fatturato Annuo meno spese, contributi INPS e imposte complessive'
-    })
-
-    return { inps, tasse: tasseTotali, netto, nettoMensile, breakdown: { steps } }
-  })
-
-  // Helper: Calcolo IRPEF Lorda (Scaglioni 2024)
-  function calcolaIrpefLorda(imponibile: number) {
-    if (imponibile <= 28000) return imponibile * 0.23;
-    if (imponibile <= 50000) return (28000 * 0.23) + ((imponibile - 28000) * 0.35);
-    return (28000 * 0.23) + (22000 * 0.35) + ((imponibile - 50000) * 0.43);
-  }
-
-  // Helper: Descrizione Scaglioni IRPEF
-  function descriviIrpefScaglioni(imponibile: number): string {
-    if (imponibile <= 0) return 'Nessun imponibile fiscale'
-    if (imponibile <= 28000) {
-      return `23% su intero imponibile di € ${imponibile.toLocaleString('it-IT')}`
-    }
-    const quota1 = 28000 * 0.23
-    if (imponibile <= 50000) {
-      const quota2 = (imponibile - 28000) * 0.35
-      return `23% su primi € 28.000 (€ ${quota1.toLocaleString('it-IT')}) + 35% su successivi € ${(imponibile - 28000).toLocaleString('it-IT')} (€ ${quota2.toLocaleString('it-IT')})`
-    }
-    const quota2 = 22000 * 0.35
-    const quota3 = (imponibile - 50000) * 0.43
-    return `23% su primi € 28.000 (€ ${quota1.toLocaleString('it-IT')}) + 35% su successivi € 22.000 (€ ${quota2.toLocaleString('it-IT')}) + 43% su quota oltre € 50.000 (€ ${quota3.toLocaleString('it-IT')})`
-  }
-
-  // Helper: Detrazioni Lavoro Dipendente/Assimilato
-  function calcolaDetrazioniDipendente(imponibile: number) {
-    if (imponibile <= 15000) return 1955;
-    if (imponibile <= 28000) return 1910 + 1190 * ((28000 - imponibile) / 13000);
-    if (imponibile <= 50000) return 1910 * ((50000 - imponibile) / 22000);
-    return 0;
-  }
-
-  // Calculations: SRL
-  const srlResult = computed(() => {
-    const costiFissiSrl = 4000;
-    const effFatt = effectiveFatturato.value
-    const utileLordoOperativo = Math.max(effFatt - speseDeducibili.value - costiFissiSrl, 0);
-
-    let tasseSrl = 0;
-    let inpsTotaleSostenutoDaUtente = 0;
-    let tasseTotali = 0;
-    let netto = 0;
-
-    const hasJob = advancedMode.value && hasLavoroDipendente.value;
-    const isFullTime = hasJob && dipendenteFullTime.value;
-    const ral = hasJob ? ralDipendente.value : 0;
-    const capInps = advancedMode.value ? massimaleInps.value : 119650;
-
-    const steps: BreakdownStep[] = [
-      { label: 'Fatturato Annuo SRL', value: effFatt, operator: '+' },
-      { 
-        label: 'Spese Deducibili', 
-        value: speseDeducibili.value, 
-        operator: '-', 
-        details: 'Spese operative della SRL' 
-      },
-      { 
-        label: 'Costi Fissi SRL', 
-        value: costiFissiSrl, 
-        operator: '-', 
-        details: 'Costi per gestione contabilità, tributi camerali, deposito bilancio' 
-      },
-      { label: 'Utile Lordo Operativo', value: utileLordoOperativo, operator: '=' }
-    ];
-
-    if (srlCassa.value === 'gestione_separata') {
-      if (srlDistribuzione.value === 'compenso') {
-        const aliquotaGsAzienda = hasJob ? 0.16 : 0.2239;
-        const aliquotaGsAmministratore = hasJob ? 0.08 : 0.1120;
-        
-        const compensoLordo = utileLordoOperativo / (1 + aliquotaGsAzienda);
-        
-        const imponibileInps = Math.min(compensoLordo, capInps);
-        const inpsAzienda = imponibileInps * aliquotaGsAzienda;
-        const inpsAmministratore = imponibileInps * aliquotaGsAmministratore;
-        
-        const imponibileFiscale = Math.max(compensoLordo - inpsAmministratore, 0);
-        
-        const imponibileFiscaleTotal = imponibileFiscale + ral;
-        const irpefLordaTotale = calcolaIrpefLorda(imponibileFiscaleTotal);
-        const irpefGiaPagataSuRal = ral > 0 ? calcolaIrpefLorda(ral) : 0;
-        const irpefLordaImpresa = irpefLordaTotale - irpefGiaPagataSuRal;
-
-        const detrazioniTotale = calcolaDetrazioniDipendente(imponibileFiscaleTotal);
-        const detrazioniSuRal = ral > 0 ? calcolaDetrazioniDipendente(ral) : 0;
-        const detrazioniImpresa = Math.max(detrazioniTotale - detrazioniSuRal, 0);
-
-        const scontoDetraibili = advancedMode.value ? speseDetraibili.value * 0.19 : 0;
-        const irpefNetta = Math.max(irpefLordaImpresa - detrazioniImpresa - scontoDetraibili, 0);
-        
-        const addizionaleRegionaleVal = advancedMode.value ? addizionaleRegionale.value : 0;
-        const addizionaleComunaleVal = advancedMode.value ? addizionaleComunale.value : 0;
-        const tasseRegionali = imponibileFiscale * (addizionaleRegionaleVal / 100);
-        const tasseComunali = imponibileFiscale * (addizionaleComunaleVal / 100);
-
-        inpsTotaleSostenutoDaUtente = inpsAzienda + inpsAmministratore; 
-        tasseTotali = irpefNetta + tasseRegionali + tasseComunali;
-        netto = compensoLordo - inpsAmministratore - tasseTotali;
-
-        steps.push({
-          label: 'Compenso Lordo Amministratore',
-          value: compensoLordo,
-          operator: '=',
-          details: `Utile Lordo ridotto per coprire i contributi INPS a carico azienda di ${(aliquotaGsAzienda * 100).toFixed(2)}%`
-        });
-        steps.push({
-          label: `INPS a Carico Azienda (SRL - ${(aliquotaGsAzienda * 100).toFixed(2)}%)`,
-          value: inpsAzienda,
-          operator: '-',
-          details: `Contributo previdenziale versato dalla società (fino al massimale)`
-        });
-        steps.push({
-          label: `INPS a Carico Amministratore (trattenuto - ${(aliquotaGsAmministratore * 100).toFixed(2)}%)`,
-          value: inpsAmministratore,
-          operator: '-',
-          details: `Contributo a carico dell'amministratore trattenuto sul compenso (fino al massimale)`
-        });
-        steps.push({
-          label: 'Imponibile Fiscale Compenso',
-          value: imponibileFiscale,
-          operator: '='
-        });
-
-        if (hasJob && ral > 0) {
-          steps.push({
-            label: 'Cumulo RAL Lavoro Dipendente',
-            value: ral,
-            operator: '+',
-            details: 'La RAL viene sommata per determinare gli scaglioni IRPEF corretti'
-          });
-          steps.push({
-            label: 'Imponibile Fiscale Totale (Compenso + RAL)',
-            value: imponibileFiscaleTotal,
-            operator: '='
-          });
-          steps.push({
-            label: 'IRPEF Lorda Cumulata',
-            value: irpefLordaTotale,
-            operator: '',
-            details: descriviIrpefScaglioni(imponibileFiscaleTotal)
-          });
-          steps.push({
-            label: 'IRPEF Trattenuta su RAL',
-            value: irpefGiaPagataSuRal,
-            operator: '',
-            details: descriviIrpefScaglioni(ral)
-          });
-        }
-
-        steps.push({
-          label: 'IRPEF Lorda su Compenso',
-          value: irpefLordaImpresa,
-          operator: '-',
-          details: hasJob 
-            ? 'Imposta lorda dovuta sul compenso (IRPEF Cumulata − IRPEF su RAL)' 
-            : descriviIrpefScaglioni(imponibileFiscale)
-        });
-
-        if (detrazioniImpresa > 0) {
-          steps.push({
-            label: 'Detrazioni Lavoro Assimilato',
-            value: detrazioniImpresa,
-            operator: '+',
-            details: 'Sconto d\'imposta calcolato per reddito da lavoro dipendente/assimilato'
-          });
-        }
-
-        if (advancedMode.value && speseDetraibili.value > 0) {
-          steps.push({
-            label: `Spese Detraibili (19% di € ${speseDetraibili.value.toLocaleString('it-IT')})`,
-            value: scontoDetraibili,
-            operator: '+',
-            details: 'Detrazione d\'imposta del 19%'
-          });
-        }
-
-        steps.push({
-          label: 'IRPEF Netta su Compenso',
-          value: irpefNetta,
-          operator: '='
-        });
-
-        if (advancedMode.value) {
-          if (tasseRegionali > 0) {
-            steps.push({
-              label: `Addizionale Regionale (${addizionaleRegionaleVal}%)`,
-              value: tasseRegionali,
-              operator: '-',
-              details: `Calcolata su imponibile compenso di € ${imponibileFiscale.toLocaleString('it-IT')}`
-            });
-          }
-          if (tasseComunali > 0) {
-            steps.push({
-              label: `Addizionale Comunale (${addizionaleComunaleVal}%)`,
-              value: tasseComunali,
-              operator: '-',
-              details: `Calcolata su imponibile compenso di € ${imponibileFiscale.toLocaleString('it-IT')}`
-            });
-          }
-        }
-
-        steps.push({
-          label: 'Netto in Tasca Amministratore',
-          value: netto,
-          operator: '=',
-          details: 'Compenso lordo meno INPS amministratore e imposte'
-        });
-
-      } else { // utili
-        tasseSrl = utileLordoOperativo * 0.279;
-        const utileNetto = utileLordoOperativo - tasseSrl;
-        const tasseDividendi = utileNetto * 0.26;
-        
-        inpsTotaleSostenutoDaUtente = 0;
-        tasseTotali = tasseSrl + tasseDividendi;
-        netto = utileNetto - tasseDividendi;
-
-        steps.push({
-          label: 'Imposte Società (IRES 24% + IRAP 3,9%)',
-          value: tasseSrl,
-          operator: '-',
-          details: 'Imposte sul reddito delle società ad aliquota combinata 27,9% su Utile Lordo'
-        });
-        steps.push({
-          label: 'Utile Netto Società',
-          value: utileNetto,
-          operator: '='
-        });
-        steps.push({
-          label: 'Imposta Sostitutiva Dividendi (26%)',
-          value: tasseDividendi,
-          operator: '-',
-          details: 'Ritenuta a titolo d\'imposta del 26% applicata in sede di distribuzione dividendi'
-        });
-        steps.push({
-          label: 'Netto in Tasca (Socio)',
-          value: netto,
-          operator: '=',
-          details: 'Utile distribuito al netto delle imposte societarie e personali'
-        });
-      }
-    } else { // artigiani
-      if (srlDistribuzione.value === 'compenso') {
-        const compensoLordo = utileLordoOperativo;
-        let inps = 0;
-        
-        let inpsMinimale = 4208;
-        let redditoEccedente = 0;
-        let inpsEccedente = 0;
-
-        if (isFullTime) {
-          inps = 0;
-        } else {
-          const imponibileInps = Math.min(compensoLordo, capInps);
-          redditoEccedente = Math.max(imponibileInps - 17504, 0);
-          inpsEccedente = redditoEccedente * 0.24;
-          inps = inpsMinimale + inpsEccedente;
-          if (srlRiduzione50.value) {
-            inps = inps * 0.50;
-          }
-        }
-
-        const imponibileFiscale = Math.max(compensoLordo - inps, 0);
-        
-        const imponibileFiscaleTotal = imponibileFiscale + ral;
-        const irpefLordaTotale = calcolaIrpefLorda(imponibileFiscaleTotal);
-        const irpefGiaPagataSuRal = ral > 0 ? calcolaIrpefLorda(ral) : 0;
-        const irpefLordaImpresa = irpefLordaTotale - irpefGiaPagataSuRal;
-
-        const detrazioniTotale = calcolaDetrazioniDipendente(imponibileFiscaleTotal);
-        const detrazioniSuRal = ral > 0 ? calcolaDetrazioniDipendente(ral) : 0;
-        const detrazioniImpresa = Math.max(detrazioniTotale - detrazioniSuRal, 0);
-
-        const scontoDetraibili = advancedMode.value ? speseDetraibili.value * 0.19 : 0;
-        const irpefNetta = Math.max(irpefLordaImpresa - detrazioniImpresa - scontoDetraibili, 0);
-
-        const addizionaleRegionaleVal = advancedMode.value ? addizionaleRegionale.value : 0;
-        const addizionaleComunaleVal = advancedMode.value ? addizionaleComunale.value : 0;
-        const tasseRegionali = imponibileFiscale * (addizionaleRegionaleVal / 100);
-        const tasseComunali = imponibileFiscale * (addizionaleComunaleVal / 100);
-
-        inpsTotaleSostenutoDaUtente = inps;
-        tasseTotali = irpefNetta + tasseRegionali + tasseComunali;
-        netto = compensoLordo - inps - tasseTotali;
-
-        steps.push({
-          label: 'Compenso Lordo Amministratore',
-          value: compensoLordo,
-          operator: '='
-        });
-
-        if (isFullTime) {
-          steps.push({
-            label: 'INPS Artigiani/Commercianti',
-            value: 0,
-            operator: '-',
-            details: 'Esonero totale dovuto a impiego dipendente full-time'
-          });
-        } else {
-          steps.push({
-            label: 'INPS quota Minimale (sotto € 17.504)',
-            value: inpsMinimale,
-            operator: '-',
-            details: 'Contributo minimale fisso per iscritti alla gestione Artigiani/Commercianti'
-          });
-          if (redditoEccedente > 0) {
-            steps.push({
-              label: 'INPS quota Eccedente (24% oltre € 17.504)',
-              value: inpsEccedente,
-              operator: '-',
-              details: `24% applicato su reddito eccedente di € ${redditoEccedente.toLocaleString('it-IT')} (fino al massimale)`
-            });
-          }
-          if (srlRiduzione50.value) {
-            const riduzioneVal = (inpsMinimale + inpsEccedente) * 0.50;
-            steps.push({
-              label: 'Riduzione INPS 50%',
-              value: riduzioneVal,
-              operator: '+',
-              details: 'Sconto del 50% per pensionati over 65 o requisiti specifici'
-            });
-          }
-        }
-
-        steps.push({
-          label: 'Imponibile Fiscale Compenso',
-          value: imponibileFiscale,
-          operator: '='
-        });
-
-        if (hasJob && ral > 0) {
-          steps.push({
-            label: 'Cumulo RAL Lavoro Dipendente',
-            value: ral,
-            operator: '+',
-            details: 'La RAL viene sommata per determinare gli scaglioni IRPEF corretti'
-          });
-          steps.push({
-            label: 'Imponibile Fiscale Totale (Compenso + RAL)',
-            value: imponibileFiscaleTotal,
-            operator: '='
-          });
-          steps.push({
-            label: 'IRPEF Lorda Cumulata',
-            value: irpefLordaTotale,
-            operator: '',
-            details: descriviIrpefScaglioni(imponibileFiscaleTotal)
-          });
-          steps.push({
-            label: 'IRPEF Trattenuta su RAL',
-            value: irpefGiaPagataSuRal,
-            operator: '',
-            details: descriviIrpefScaglioni(ral)
-          });
-        }
-
-        steps.push({
-          label: 'IRPEF Lorda su Compenso',
-          value: irpefLordaImpresa,
-          operator: '-',
-          details: hasJob 
-            ? 'Imposta lorda dovuta sul compenso (IRPEF Cumulata − IRPEF su RAL)' 
-            : descriviIrpefScaglioni(imponibileFiscale)
-        });
-
-        if (detrazioniImpresa > 0) {
-          steps.push({
-            label: 'Detrazioni Lavoro Assimilato',
-            value: detrazioniImpresa,
-            operator: '+',
-            details: 'Sconto d\'imposta per reddito da lavoro dipendente/assimilato'
-          });
-        }
-
-        if (advancedMode.value && speseDetraibili.value > 0) {
-          steps.push({
-            label: `Spese Detraibili (19% di € ${speseDetraibili.value.toLocaleString('it-IT')})`,
-            value: scontoDetraibili,
-            operator: '+',
-            details: 'Detrazione d\'imposta del 19%'
-          });
-        }
-
-        steps.push({
-          label: 'IRPEF Netta su Compenso',
-          value: irpefNetta,
-          operator: '='
-        });
-
-        if (advancedMode.value) {
-          if (tasseRegionali > 0) {
-            steps.push({
-              label: `Addizionale Regionale (${addizionaleRegionaleVal}%)`,
-              value: tasseRegionali,
-              operator: '-',
-              details: `Calcolata su imponibile compenso di € ${imponibileFiscale.toLocaleString('it-IT')}`
-            });
-          }
-          if (tasseComunali > 0) {
-            steps.push({
-              label: `Addizionale Comunale (${addizionaleComunaleVal}%)`,
-              value: tasseComunali,
-              operator: '-',
-              details: `Calcolata su imponibile compenso di € ${imponibileFiscale.toLocaleString('it-IT')}`
-            });
-          }
-        }
-
-        steps.push({
-          label: 'Netto in Tasca Amministratore',
-          value: netto,
-          operator: '=',
-          details: 'Compenso lordo meno INPS e imposte'
-        });
-
-      } else { // utili
-        tasseSrl = utileLordoOperativo * 0.279;
-        const utileNetto = utileLordoOperativo - tasseSrl;
-        const tasseDividendi = utileNetto * 0.26;
-
-        let inps = 0;
-        let inpsMinimale = 4208;
-        let redditoEccedente = 0;
-        let inpsEccedente = 0;
-
-        if (isFullTime) {
-          inps = 0;
-        } else {
-          const imponibileInps = Math.min(utileLordoOperativo, capInps);
-          redditoEccedente = Math.max(imponibileInps - 17504, 0);
-          inpsEccedente = redditoEccedente * 0.24;
-          inps = inpsMinimale + inpsEccedente;
-          if (srlRiduzione50.value) {
-            inps = inps * 0.50;
-          }
-        }
-
-        inpsTotaleSostenutoDaUtente = inps;
-        tasseTotali = tasseSrl + tasseDividendi;
-        netto = utileNetto - tasseDividendi - inps;
-
-        steps.push({
-          label: 'Imposte Società (IRES 24% + IRAP 3,9%)',
-          value: tasseSrl,
-          operator: '-',
-          details: 'Imposte sul reddito delle società ad aliquota combinata 27,9% su Utile Lordo'
-        });
-        steps.push({
-          label: 'Utile Netto Società',
-          value: utileNetto,
-          operator: '='
-        });
-
-        if (isFullTime) {
-          steps.push({
-            label: 'INPS Socio Artigiani/Commercianti',
-            value: 0,
-            operator: '-',
-            details: 'Esonero totale dovuto a impiego dipendente full-time'
-          });
-        } else {
-          steps.push({
-            label: 'INPS quota Minimale (sotto € 17.504)',
-            value: inpsMinimale,
-            operator: '-',
-            details: 'Quota minimale contributi previdenziali'
-          });
-          if (redditoEccedente > 0) {
-            steps.push({
-              label: 'INPS quota Eccedente (24% oltre € 17.504)',
-              value: inpsEccedente,
-              operator: '-',
-              details: `24% applicato su reddito eccedente di € ${redditoEccedente.toLocaleString('it-IT')}`
-            });
-          }
-          if (srlRiduzione50.value) {
-            const riduzioneVal = (inpsMinimale + inpsEccedente) * 0.50;
-            steps.push({
-              label: 'Riduzione INPS 50%',
-              value: riduzioneVal,
-              operator: '+',
-              details: 'Sconto del 50% sui contributi previdenziali'
-            });
-          }
-        }
-
-        steps.push({
-          label: 'Imposta Sostitutiva Dividendi (26%)',
-          value: tasseDividendi,
-          operator: '-',
-          details: 'Ritenuta a titolo d\'imposta del 26% applicata in sede di distribuzione dividendi'
-        });
-        steps.push({
-          label: 'Netto in Tasca (Socio)',
-          value: netto,
-          operator: '=',
-          details: 'Utile distribuito al socio al netto di imposte e contributi previdenziali'
-        });
-      }
-    }
-
-    const nettoMensile = netto / mesiParagone.value;
-    return { 
-      inps: inpsTotaleSostenutoDaUtente, 
-      tasse: tasseTotali, 
-      netto,
-      nettoMensile,
-      breakdown: { steps }
+    return {
+      inps,
+      tasse: taxes,
+      netto: net,
+      nettoMensile: net / Math.max(mesiParagone.value, 1),
+      ires,
+      irap,
+      dividendTax,
+      administratorCompanyInps,
+      administratorPersonalInps,
+      administratorGrossCompensation,
+      operatingProfit,
+      breakdown: { steps },
     }
   })
 
-  // Calculations: Dipendente
   const dipendenteResult = computed(() => {
-    const aliquotaInpsDipendente = 0.0919;
-
     const isRalMode = inputMode.value === 'ral'
-    let ral: number
-    let inpsDatore: number
-    let fatturatoEquivalente: number
-
-    if (isRalMode) {
-      ral = fatturato.value
-      inpsDatore = ral * ALIQUOTA_INPS_DATORE
-      fatturatoEquivalente = ral * (1 + ALIQUOTA_INPS_DATORE)
-    } else {
-      ral = fatturato.value / (1 + ALIQUOTA_INPS_DATORE)
-      inpsDatore = ral * ALIQUOTA_INPS_DATORE
-      fatturatoEquivalente = fatturato.value
-    }
-
-    const inpsDipendente = ral * aliquotaInpsDipendente;
-    
-    const imponibileFiscale = Math.max(ral - inpsDipendente, 0);
-    const irpefLorda = calcolaIrpefLorda(imponibileFiscale);
-    const detrazioni = calcolaDetrazioniDipendente(imponibileFiscale);
-    const irpefNettaPreTrattamento = Math.max(irpefLorda - detrazioni, 0);
-
-    // Trattamento Integrativo (ex Bonus Renzi)
-    let trattamentoIntegrativo = 0
-    if (imponibileFiscale <= 15000) {
-      trattamentoIntegrativo = 1200
-    } else if (imponibileFiscale <= 28000) {
-      trattamentoIntegrativo = 1200 * (28000 - imponibileFiscale) / 13000
-    }
-    const creditoEffettivo = Math.min(trattamentoIntegrativo, irpefNettaPreTrattamento)
-    const irpefNetta = irpefNettaPreTrattamento - creditoEffettivo
-
-    const addizionaleRegionaleVal = advancedMode.value ? addizionaleRegionale.value : 0;
-    const addizionaleComunaleVal = advancedMode.value ? addizionaleComunale.value : 0;
-    const tasseRegionali = imponibileFiscale * (addizionaleRegionaleVal / 100);
-    const tasseComunali = imponibileFiscale * (addizionaleComunaleVal / 100);
-
-    const tasseTotali = irpefNetta + tasseRegionali + tasseComunali;
-    const inpsTotale = inpsDatore + inpsDipendente;
-    
-    const nettoFiscale = ral - inpsDipendente - tasseTotali + creditoEffettivo;
-    const netto = Math.max(nettoFiscale - speseDeducibili.value, 0);
-    const nettoMensile = netto / mesiParagone.value;
-
+    const rateDatore = employerContributionRate.value
+    const ral = isRalMode ? Math.max(fatturato.value, 0) : Math.max(fatturato.value, 0) / (1 + rateDatore)
+    const inpsDatore = ral * rateDatore
+    const fatturatoEquivalente = ral + inpsDatore
+    const inpsDipendente = ral * employeeContributionRate.value
+    const taxableIncome = Math.max(ral - inpsDipendente, 0)
+    const position = calculatePersonalTaxPosition({
+      employeeTaxableIncome: taxableIncome,
+      genericTaxCredits: genericTaxCredits.value,
+      regionalRatePercent: regionalRate.value,
+      municipalRatePercent: municipalRate.value,
+    })
+    const netBeforeCosts = ral - inpsDipendente - position.netIrpef - position.regionalTax
+      - position.municipalTax + position.trattamentoIntegrativo
+    const net = Math.max(netBeforeCosts - Math.max(costiOperativiReali.value, 0), 0)
     const steps: BreakdownStep[] = []
 
     if (isRalMode) {
       steps.push({ label: 'RAL (Retribuzione Annua Lorda)', value: ral, operator: '+' })
     } else {
-      steps.push({ label: 'Costo Aziendale Totale (Fatturato)', value: fatturato.value, operator: '+' })
-      steps.push({ 
-        label: `INPS a carico Azienda (contrib. stimati ~ ${(ALIQUOTA_INPS_DATORE * 100).toFixed(2)}%)`, 
-        value: inpsDatore, 
-        operator: '-', 
-        details: 'Oneri contributivi obbligatori a carico del datore di lavoro' 
-      })
-      steps.push({ label: 'RAL Calcolata (Retribuzione Annua Lorda)', value: ral, operator: '=' })
-    }
-
-    steps.push({ 
-      label: `INPS a carico Dipendente (~ ${(aliquotaInpsDipendente * 100).toFixed(2)}%)`, 
-      value: inpsDipendente, 
-      operator: '-', 
-      details: 'Quota contributiva a carico del lavoratore trattenuta in busta paga' 
-    })
-    steps.push({ label: 'Imponibile Fiscale', value: imponibileFiscale, operator: '=' })
-    steps.push({ 
-      label: 'IRPEF Lorda', 
-      value: irpefLorda, 
-      operator: '-', 
-      details: descriviIrpefScaglioni(imponibileFiscale) 
-    })
-
-    if (detrazioni > 0) {
+      steps.push({ label: 'Costo contributivo aziendale stimato', value: fatturato.value, operator: '+' })
       steps.push({
-        label: 'Detrazioni Lavoro Dipendente',
-        value: detrazioni,
-        operator: '+',
-        details: 'Sconto IRPEF per redditi da lavoro dipendente e assimilati'
-      });
-    }
-
-    if (creditoEffettivo > 0) {
-      steps.push({
-        label: 'Trattamento Integrativo (ex Bonus Renzi)',
-        value: creditoEffettivo,
-        operator: '+',
-        details: trattamentoIntegrativo === 1200
-          ? 'Credito pieno di € 1.200 per imponibile fino a € 15.000'
-          : `Credito ridotto: € 1.200 × (28.000 − ${imponibileFiscale.toLocaleString('it-IT')}) ÷ 13.000`
-      })
-    }
-
-    steps.push({
-      label: 'IRPEF Netta',
-      value: irpefNetta,
-      operator: '='
-    });
-
-    if (advancedMode.value) {
-      if (tasseRegionali > 0) {
-        steps.push({
-          label: `Addizionale Regionale (${addizionaleRegionaleVal}%)`,
-          value: tasseRegionali,
-          operator: '-',
-          details: `Calcolata su imponibile di € ${imponibileFiscale.toLocaleString('it-IT')}`
-        });
-      }
-      if (tasseComunali > 0) {
-        steps.push({
-          label: `Addizionale Comunale (${addizionaleComunaleVal}%)`,
-          value: tasseComunali,
-          operator: '-',
-          details: `Calcolata su imponibile di € ${imponibileFiscale.toLocaleString('it-IT')}`
-        });
-      }
-    }
-
-    if (speseDeducibili.value > 0) {
-      steps.push({
-        label: 'Netto Fiscale (al lordo spese)',
-        value: nettoFiscale,
-        operator: '=',
-        details: 'Risultato del calcolo fiscale prima della sottrazione delle spese vive non deducibili'
-      })
-      steps.push({
-        label: 'Spese (non deducibili)',
-        value: speseDeducibili.value,
+        label: `Contributi datore stimati (${aliquotaContributivaDatore.value.toFixed(2)}%)`,
+        value: inpsDatore,
         operator: '-',
-        details: 'Per il lavoratore dipendente le spese aziendali non sono fiscalmente deducibili: vengono sottratte dal netto per un confronto equo con gli altri regimi'
+        details: 'Non include automaticamente TFR, INAIL, fondi, welfare o altri costi indiretti.',
+      })
+      steps.push({ label: 'RAL calcolata', value: ral, operator: '=' })
+    }
+    steps.push({ label: `INPS dipendente stimata (${aliquotaInpsDipendente.value.toFixed(2)}%)`, value: inpsDipendente, operator: '-' })
+    steps.push({ label: 'Imponibile fiscale', value: taxableIncome, operator: '=' })
+    steps.push({ label: 'IRPEF lorda', value: position.grossIrpef, operator: '-', details: describeProgressiveTax(taxableIncome) })
+    if (position.employeeTaxCredit > 0) {
+      steps.push({ label: 'Detrazione lavoro dipendente', value: position.employeeTaxCredit, operator: '+' })
+    }
+    if (position.genericTaxCredits > 0) {
+      steps.push({ label: 'Detrazioni 19% capienti', value: position.genericTaxCredits, operator: '+' })
+    }
+    steps.push({ label: 'IRPEF netta', value: position.netIrpef, operator: '=' })
+    if (position.trattamentoIntegrativo > 0) {
+      steps.push({
+        label: 'Trattamento integrativo',
+        value: position.trattamentoIntegrativo,
+        operator: '+',
+        details: 'Credito calcolato secondo capienza e reddito complessivo; incide una sola volta sul netto.',
       })
     }
-
-    steps.push({
-      label: 'Netto Finale',
-      value: netto,
-      operator: '=',
-      details: speseDeducibili.value > 0
-        ? 'RAL meno contributi INPS, imposte e trattamento integrativo, e Spese non deducibili'
-        : 'RAL meno contributi INPS dipendente e imposte, più trattamento integrativo'
-    });
+    if (position.regionalTax > 0) steps.push({ label: 'Addizionale regionale stimata', value: position.regionalTax, operator: '-' })
+    if (position.municipalTax > 0) steps.push({ label: 'Addizionale comunale stimata', value: position.municipalTax, operator: '-' })
+    if (costiOperativiReali.value > 0) {
+      steps.push({ label: 'Costi operativi reali di confronto', value: costiOperativiReali.value, operator: '-' })
+    }
+    steps.push({ label: 'Netto finale', value: net, operator: '=' })
 
     return {
-      inps: inpsTotale,
+      inps: inpsDatore + inpsDipendente,
       inpsDipendente,
       inpsDatore,
       ral,
-      tasse: tasseTotali,
-      netto,
-      nettoMensile,
+      tasse: position.netIrpef + position.regionalTax + position.municipalTax - position.trattamentoIntegrativo,
+      netto: net,
+      nettoMensile: net / Math.max(mesiParagone.value, 1),
       fatturatoEquivalente,
-      breakdown: { steps }
+      taxableIncome,
+      taxPosition: position,
+      breakdown: { steps },
     }
   })
 
-  // Watchers for mutual exclusivity and resets
-  watch(forfettarioCassa, (newCassa) => {
-    if (newCassa === 'gestione_separata') {
-      forfettarioRiduzione35.value = false
-      forfettarioRiduzione50.value = false
+  const validationIssues = computed<ValidationIssue[]>(() => {
+    const issues: ValidationIssue[] = []
+    if (forfettarioStatus.value.level === 'warning') {
+      issues.push({ scope: 'forfettario', severity: 'warning', message: 'Ricavi oltre €85.000: il regime cessa dall’anno successivo.' })
     }
+    if (forfettarioStatus.value.level === 'error') {
+      issues.push({ scope: 'forfettario', severity: 'error', message: 'Ricavi oltre €100.000: uscita immediata dal regime nell’anno.' })
+    }
+    if (redditoDipendentePrecedente.value > FISCAL_RULES_2026.forfettario.priorEmploymentIncomeThreshold) {
+      issues.push({
+        scope: 'forfettario',
+        severity: 'error',
+        message: 'Reddito di lavoro dipendente/assimilato dell’anno precedente oltre €35.000: verifica la causa ostativa.',
+      })
+    }
+    const usesBusinessFund = [forfettarioCassa.value, ordinarioCassa.value].some((fund) => fund !== 'gestione_separata')
+      || srlSocioLavoratore.value
+    if (usesBusinessFund && businessEnrollment.value === 'unknown') {
+      issues.push({
+        scope: 'global',
+        severity: 'warning',
+        message: 'Obbligo di iscrizione Artigiani/Commercianti non confermato: i contributi sono inclusi prudenzialmente.',
+      })
+    }
+    if (atecoCategory.value === 'professionisti' && [forfettarioCassa.value, ordinarioCassa.value].some((fund) => fund !== 'gestione_separata')) {
+      issues.push({ scope: 'global', severity: 'warning', message: 'Categoria ATECO professionisti e gestione Artigiani/Commercianti: verifica la coerenza previdenziale.' })
+    }
+    return issues
   })
 
-  watch(ordinarioCassa, (newCassa) => {
-    if (newCassa === 'gestione_separata') {
-      ordinarioRiduzione50.value = false
-    }
+  const stateSnapshot = () => ({
+    fiscalYear: fiscalYear.value,
+    fatturato: fatturato.value,
+    inputMode: inputMode.value,
+    advancedMode: advancedMode.value,
+    costiOperativiReali: costiOperativiReali.value,
+    costiFiscalmenteDeducibili: costiFiscalmenteDeducibili.value,
+    speseDetraibili: speseDetraibili.value,
+    atecoCategory: atecoCategory.value,
+    atecoCoef: atecoCoef.value,
+    mesiParagone: mesiParagone.value,
+    hasLavoroDipendente: hasLavoroDipendente.value,
+    ralDipendente: ralDipendente.value,
+    redditoDipendentePrecedente: redditoDipendentePrecedente.value,
+    dipendenteFullTime: dipendenteFullTime.value,
+    aliquotaInpsDipendente: aliquotaInpsDipendente.value,
+    aliquotaContributivaDatore: aliquotaContributivaDatore.value,
+    addizionaleRegionale: addizionaleRegionale.value,
+    addizionaleComunale: addizionaleComunale.value,
+    massimaleInps: massimaleInps.value,
+    businessEnrollment: businessEnrollment.value,
+    forfettarioCassa: forfettarioCassa.value,
+    forfettarioStartup: forfettarioStartup.value,
+    forfettarioContributionRelief: forfettarioContributionRelief.value,
+    ordinarioCassa: ordinarioCassa.value,
+    ordinarioContributionRelief: ordinarioContributionRelief.value,
+    srlDistribuzione: srlDistribuzione.value,
+    srlCostiFissi: srlCostiFissi.value,
+    srlSocioLavoratore: srlSocioLavoratore.value,
+    srlSocioCassa: srlSocioCassa.value,
+    srlContributionRelief: srlContributionRelief.value,
+    showForfettario: showForfettario.value,
+    showOrdinario: showOrdinario.value,
+    showSrl: showSrl.value,
+    showDipendente: showDipendente.value,
+    cardOrder: cardOrder.value,
   })
 
-  watch(srlCassa, (newCassa) => {
-    if (newCassa === 'gestione_separata') {
-      srlRiduzione50.value = false
+  const applyState = (parsed: Record<string, unknown>) => {
+    const oldCosts = Number(parsed.speseDeducibili ?? parsed.spese ?? 5_000)
+    fiscalYear.value = FISCAL_YEAR
+    fatturato.value = Number(parsed.fatturato ?? fatturato.value)
+    inputMode.value = parsed.inputMode === 'ral' ? 'ral' : 'fatturato'
+    advancedMode.value = Boolean(parsed.advancedMode ?? (parsed.expensesMode === 'advanced'))
+    costiOperativiReali.value = Number(parsed.costiOperativiReali ?? oldCosts)
+    costiFiscalmenteDeducibili.value = Number(parsed.costiFiscalmenteDeducibili ?? oldCosts)
+    speseDetraibili.value = Number(parsed.speseDetraibili ?? speseDetraibili.value)
+    if (parsed.atecoCategory !== undefined) {
+      atecoCategory.value = String(parsed.atecoCategory)
+    } else if (parsed.atecoCoef !== undefined) {
+      atecoCategory.value = ATECO_CATEGORIES.find((category) => category.id !== 'custom' && category.coef === Number(parsed.atecoCoef))?.id ?? 'custom'
     }
-  })
+    atecoCoef.value = Number(parsed.atecoCoef ?? atecoCoef.value)
+    mesiParagone.value = Number(parsed.mesiParagone ?? mesiParagone.value)
+    hasLavoroDipendente.value = Boolean(parsed.hasLavoroDipendente ?? hasLavoroDipendente.value)
+    ralDipendente.value = Number(parsed.ralDipendente ?? ralDipendente.value)
+    redditoDipendentePrecedente.value = Number(parsed.redditoDipendentePrecedente ?? redditoDipendentePrecedente.value)
+    dipendenteFullTime.value = Boolean(parsed.dipendenteFullTime ?? dipendenteFullTime.value)
+    aliquotaInpsDipendente.value = Number(parsed.aliquotaInpsDipendente ?? aliquotaInpsDipendente.value)
+    aliquotaContributivaDatore.value = Number(parsed.aliquotaContributivaDatore ?? aliquotaContributivaDatore.value)
+    addizionaleRegionale.value = Number(parsed.addizionaleRegionale ?? addizionaleRegionale.value)
+    addizionaleComunale.value = Number(parsed.addizionaleComunale ?? addizionaleComunale.value)
+    massimaleInps.value = Number(parsed.massimaleInps ?? massimaleInps.value)
+    businessEnrollment.value = ['required', 'not_required'].includes(String(parsed.businessEnrollment))
+      ? parsed.businessEnrollment as EnrollmentStatus
+      : 'unknown'
 
-  watch(forfettarioRiduzione35, (active) => {
-    if (active) {
-      forfettarioRiduzione50.value = false
-    }
-  })
+    forfettarioCassa.value = ['artigiani', 'commercianti'].includes(String(parsed.forfettarioCassa))
+      ? parsed.forfettarioCassa as PrevidentialFund
+      : 'gestione_separata'
+    forfettarioStartup.value = Boolean(parsed.forfettarioStartup ?? false)
+    forfettarioContributionRelief.value = (parsed.forfettarioContributionRelief as ContributionRelief)
+      ?? (parsed.forfettarioRiduzione35 ? 'forfettario_35' : parsed.forfettarioRiduzione50 ? 'pensioner_50' : 'none')
+    ordinarioCassa.value = ['artigiani', 'commercianti'].includes(String(parsed.ordinarioCassa))
+      ? parsed.ordinarioCassa as PrevidentialFund
+      : 'gestione_separata'
+    ordinarioContributionRelief.value = (parsed.ordinarioContributionRelief as ContributionRelief)
+      ?? (parsed.ordinarioRiduzione50 ? 'pensioner_50' : 'none')
+    srlDistribuzione.value = parsed.srlDistribuzione === 'utili' ? 'utili' : 'compenso'
+    srlCostiFissi.value = Number(parsed.srlCostiFissi ?? srlCostiFissi.value)
+    const oldSrlFund = String(parsed.srlCassa ?? '')
+    srlSocioLavoratore.value = Boolean(parsed.srlSocioLavoratore ?? ['artigiani', 'commercianti'].includes(oldSrlFund))
+    srlSocioCassa.value = (parsed.srlSocioCassa === 'commercianti' || oldSrlFund === 'commercianti') ? 'commercianti' : 'artigiani'
+    srlContributionRelief.value = (parsed.srlContributionRelief as ContributionRelief)
+      ?? (parsed.srlRiduzione50 ? 'pensioner_50' : 'none')
+    showForfettario.value = Boolean(parsed.showForfettario ?? showForfettario.value)
+    showOrdinario.value = Boolean(parsed.showOrdinario ?? showOrdinario.value)
+    showSrl.value = Boolean(parsed.showSrl ?? showSrl.value)
+    showDipendente.value = Boolean(parsed.showDipendente ?? showDipendente.value)
+    if (Array.isArray(parsed.cardOrder)) cardOrder.value = parsed.cardOrder.map(String)
+  }
 
-  watch(forfettarioRiduzione50, (active) => {
-    if (active) {
-      forfettarioRiduzione35.value = false
+  const loadState = () => {
+    if (typeof localStorage === 'undefined') return
+    const saved = localStorage.getItem('taxgrid_state')
+    if (!saved) return
+    try { applyState(JSON.parse(saved)) } catch (error) { console.error('Failed to load state', error) }
+  }
+
+  const applyUrlState = () => {
+    if (typeof window === 'undefined') return
+    const encoded = new URLSearchParams(window.location.search).get('data')
+    if (!encoded) return
+    try {
+      const parsed = JSON.parse(atob(encoded)) as Record<string, unknown>
+      if (parsed.v === 2) {
+        applyState({
+          fiscalYear: parsed.y,
+          fatturato: parsed.f,
+          inputMode: parsed.m,
+          advancedMode: parsed.a,
+          costiOperativiReali: parsed.cr,
+          costiFiscalmenteDeducibili: parsed.cf,
+          speseDetraibili: parsed.d,
+          atecoCategory: parsed.ac,
+          atecoCoef: parsed.ax,
+          mesiParagone: parsed.mm,
+          hasLavoroDipendente: parsed.h,
+          ralDipendente: parsed.r,
+          redditoDipendentePrecedente: parsed.rp,
+          dipendenteFullTime: parsed.ft,
+          aliquotaInpsDipendente: parsed.id,
+          aliquotaContributivaDatore: parsed.ed,
+          addizionaleRegionale: parsed.ar,
+          addizionaleComunale: parsed.am,
+          massimaleInps: parsed.mi,
+          businessEnrollment: parsed.be,
+          forfettarioCassa: parsed.fc,
+          forfettarioStartup: parsed.fs,
+          forfettarioContributionRelief: parsed.fr,
+          ordinarioCassa: parsed.oc,
+          ordinarioContributionRelief: parsed.or,
+          srlDistribuzione: parsed.sd,
+          srlCostiFissi: parsed.sc,
+          srlSocioLavoratore: parsed.sl,
+          srlSocioCassa: parsed.ss,
+          srlContributionRelief: parsed.sr,
+          showForfettario: parsed.vf,
+          showOrdinario: parsed.vo,
+          showSrl: parsed.vs,
+          showDipendente: parsed.vd,
+          cardOrder: parsed.co,
+        })
+      } else {
+        applyState(parsed)
+      }
+    } catch (error) { console.error('Failed to parse URL state', error) }
+  }
+
+  loadState()
+  applyUrlState()
+
+  watch(stateSnapshot, (state) => {
+    if (typeof localStorage !== 'undefined') localStorage.setItem('taxgrid_state', JSON.stringify(state))
+  }, { deep: true })
+
+  const buildShareUrl = () => {
+    if (typeof window === 'undefined') return 'https://taxgrid.it'
+    const url = new URL(window.location.href)
+    url.search = ''
+    const state = stateSnapshot()
+    const compactState = {
+      v: 2, y: state.fiscalYear, f: state.fatturato, m: state.inputMode, a: state.advancedMode,
+      cr: state.costiOperativiReali, cf: state.costiFiscalmenteDeducibili, d: state.speseDetraibili,
+      ac: state.atecoCategory, ax: state.atecoCoef, mm: state.mesiParagone,
+      h: state.hasLavoroDipendente, r: state.ralDipendente, rp: state.redditoDipendentePrecedente,
+      ft: state.dipendenteFullTime, id: state.aliquotaInpsDipendente, ed: state.aliquotaContributivaDatore,
+      ar: state.addizionaleRegionale, am: state.addizionaleComunale, mi: state.massimaleInps,
+      be: state.businessEnrollment, fc: state.forfettarioCassa, fs: state.forfettarioStartup,
+      fr: state.forfettarioContributionRelief, oc: state.ordinarioCassa, or: state.ordinarioContributionRelief,
+      sd: state.srlDistribuzione, sc: state.srlCostiFissi, sl: state.srlSocioLavoratore,
+      ss: state.srlSocioCassa, sr: state.srlContributionRelief, vf: state.showForfettario,
+      vo: state.showOrdinario, vs: state.showSrl, vd: state.showDipendente, co: state.cardOrder,
     }
-  })
+    url.searchParams.set('data', btoa(JSON.stringify(compactState)))
+    return url.toString()
+  }
+
+  const convertInputMode = (newMode: 'fatturato' | 'ral') => {
+    if (inputMode.value === newMode) return
+    const factor = 1 + employerContributionRate.value
+    fatturato.value = roundMoney(inputMode.value === 'ral' ? fatturato.value * factor : fatturato.value / factor)
+    inputMode.value = newMode
+  }
 
   return {
-    fatturato, inputMode, effectiveFatturato, expensesMode, advancedMode, speseDeducibili, speseDetraibili, atecoCategory, atecoCoef, ATECO_CATEGORIES,
-    forfettarioCassa, forfettarioStartup, forfettarioRiduzione35, forfettarioRiduzione50,
-    ordinarioCassa, ordinarioRiduzione50,
-    srlDistribuzione, srlCassa, srlRiduzione50,
-    forfettarioResult, ordinarioResult, srlResult, dipendenteResult,
+    fiscalYear,
+    fatturato,
+    inputMode,
+    effectiveFatturato,
+    expensesMode,
+    advancedMode,
+    speseDeducibili,
+    costiOperativiReali,
+    costiFiscalmenteDeducibili,
+    speseDetraibili,
+    atecoCategory,
+    atecoCoef,
+    ATECO_CATEGORIES,
+    forfettarioCassa,
+    forfettarioStartup,
+    forfettarioContributionRelief,
+    forfettarioRiduzione35,
+    forfettarioRiduzione50,
+    ordinarioCassa,
+    ordinarioContributionRelief,
+    ordinarioRiduzione50,
+    srlDistribuzione,
+    srlCostiFissi,
+    srlSocioLavoratore,
+    srlSocioCassa,
+    srlContributionRelief,
+    srlCassa,
+    srlRiduzione50,
+    forfettarioResult,
+    ordinarioResult,
+    srlResult,
+    dipendenteResult,
+    forfettarioStatus,
+    validationIssues,
     mesiParagone,
-    hasLavoroDipendente, ralDipendente, dipendenteFullTime,
-    addizionaleRegionale, addizionaleComunale, massimaleInps,
-    showForfettario, showOrdinario, showSrl, showDipendente,
-    cardOrder, buildShareUrl
+    hasLavoroDipendente,
+    ralDipendente,
+    redditoDipendentePrecedente,
+    dipendenteFullTime,
+    aliquotaInpsDipendente,
+    aliquotaContributivaDatore,
+    addizionaleRegionale,
+    addizionaleComunale,
+    massimaleInps,
+    businessEnrollment,
+    showForfettario,
+    showOrdinario,
+    showSrl,
+    showDipendente,
+    cardOrder,
+    buildShareUrl,
+    convertInputMode,
   }
 })
