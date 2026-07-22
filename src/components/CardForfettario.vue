@@ -25,22 +25,28 @@ defineEmits<{
             <path d="M7 2a2 2 0 100 4 2 2 0 000-4zM7 8a2 2 0 100 4 2 2 0 000-4zM7 14a2 2 0 100 4 2 2 0 000-4zM13 2a2 2 0 100 4 2 2 0 000-4zM13 8a2 2 0 100 4 2 2 0 000-4zM13 14a2 2 0 100 4 2 2 0 000-4z" />
           </svg>
         </div>
-        <h3 class="text-xl font-bold text-blue-800 dark:text-blue-300">Regime Forfettario</h3>
+        <div>
+          <h3 class="text-xl font-bold text-blue-800 dark:text-blue-300">Regime Forfettario</h3>
+          <span class="text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Alta precisione</span>
+        </div>
       </div>
     </div>
     
     <div class="p-6 flex-grow flex flex-col">
       <!-- Warning Banner -->
-      <div v-if="store.advancedMode && store.hasLavoroDipendente && store.ralDipendente > 35000" class="mb-4 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/30 rounded-xl flex items-start gap-2.5 text-xs text-red-700 dark:text-red-300 leading-relaxed font-medium">
+      <div v-if="store.forfettarioStatus.level !== 'ok'" :class="store.forfettarioStatus.level === 'error' ? 'bg-red-50 border-red-200 text-red-700 dark:bg-red-950/30 dark:text-red-300' : 'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300'" class="mb-4 p-3 border rounded-xl flex items-start gap-2.5 text-xs leading-relaxed font-medium">
         <svg class="w-4 h-4 shrink-0 mt-0.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
         </svg>
-        <span>Attenzione: con redditi da lavoro dipendente &gt; 35.000€ non è consentito aderire al Regime Forfettario.</span>
+        <span>{{ store.forfettarioStatus.label }}</span>
       </div>
 
       <div class="mb-6 space-y-4">
         <div class="flex items-center justify-between">
-          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Aliquota Startup (5%)</span>
+          <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+            Applica startup 5% — dichiaro i requisiti
+            <InfoTooltip text="Richiede nuova attività e ulteriori condizioni normative, tra cui assenza di attività analoga nei tre anni precedenti e di mera prosecuzione." />
+          </span>
           <Switch
             v-model="store.forfettarioStartup"
             :class="store.forfettarioStartup ? 'bg-[#e2af0d]' : 'bg-gray-200 dark:bg-gray-600'"
@@ -63,57 +69,26 @@ defineEmits<{
             <InfoTooltip text="Gestione Separata: contributi calcolati in percentuale senza minimale fisso. Artigiani/Commercianti: contributi fissi minimi + quota percentuale." />
           </label>
           <select v-model="store.forfettarioCassa" class="block w-full py-2 px-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg shadow-sm focus:ring-[#e2af0d] focus:border-[#e2af0d] sm:text-sm print:hidden">
-            <option value="gestione_separata">Gestione Separata (Pro)</option>
-            <option value="artigiani">Artigiani e Commercianti</option>
+            <option value="gestione_separata">Gestione Separata (Professionisti)</option>
+            <option value="artigiani">Artigiani</option>
+            <option value="commercianti">Commercianti</option>
           </select>
           <div class="hidden print:block text-sm font-bold text-gray-900 py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg">
-            {{ store.forfettarioCassa === 'gestione_separata' ? 'Gestione Separata (Pro)' : 'Artigiani e Commercianti' }}
+            {{ store.forfettarioCassa === 'gestione_separata' ? 'Gestione Separata (Professionisti)' : store.forfettarioCassa === 'artigiani' ? 'Artigiani' : 'Commercianti' }}
           </div>
         </div>
 
-        <!-- INPS Reductions (Artigiani only) -->
-        <div v-if="store.forfettarioCassa === 'artigiani'" class="flex flex-col gap-3 pt-2">
-          <div class="flex items-center justify-between">
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
-              Riduzione INPS 35%
-              <InfoTooltip text="Esclusiva per Regime Forfettario (Artigiani/Commercianti). Riduce del 35% tutti i contributi dovuti. Riduce proporzionalmente l'anzianità pensionistica." />
-            </span>
-            <Switch
-              v-model="store.forfettarioRiduzione35"
-              :class="store.forfettarioRiduzione35 ? 'bg-[#e2af0d]' : 'bg-gray-200 dark:bg-gray-600'"
-              class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#e2af0d] focus:ring-offset-2 dark:focus:ring-offset-gray-800 print:hidden"
-            >
-              <span class="sr-only">Toggle Riduzione 35%</span>
-              <span
-                :class="store.forfettarioRiduzione35 ? 'translate-x-6' : 'translate-x-1'"
-                class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-              />
-            </Switch>
-            <span class="hidden print:inline-block text-sm font-bold text-gray-900">
-              {{ store.forfettarioRiduzione35 ? 'Sì' : 'No' }}
-            </span>
-          </div>
-
-          <div class="flex items-center justify-between">
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
-              Riduzione INPS 50%
-              <InfoTooltip text="Applicabile ai pensionati Over 65 INPS o a specifici neo-iscritti. Incompatibile con la riduzione del 35%." />
-            </span>
-            <Switch
-              v-model="store.forfettarioRiduzione50"
-              :class="store.forfettarioRiduzione50 ? 'bg-[#e2af0d]' : 'bg-gray-200 dark:bg-gray-600'"
-              class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#e2af0d] focus:ring-offset-2 dark:focus:ring-offset-gray-800 print:hidden"
-            >
-              <span class="sr-only">Toggle Riduzione 50%</span>
-              <span
-                :class="store.forfettarioRiduzione50 ? 'translate-x-6' : 'translate-x-1'"
-                class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-              />
-            </Switch>
-            <span class="hidden print:inline-block text-sm font-bold text-gray-900">
-              {{ store.forfettarioRiduzione50 ? 'Sì' : 'No' }}
-            </span>
-          </div>
+        <div v-if="store.forfettarioCassa !== 'gestione_separata'" class="pt-2">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center">
+            Agevolazione contributiva 2026
+            <InfoTooltip text="Seleziona solo l’agevolazione per cui possiedi i requisiti. Le opzioni sono mutuamente esclusive." />
+          </label>
+          <select v-model="store.forfettarioContributionRelief" class="block w-full py-2 px-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg text-sm print:hidden">
+            <option value="none">Nessuna</option>
+            <option value="forfettario_35">Regime previdenziale forfettario −35%</option>
+            <option value="pensioner_50">Pensionato INPS over 65 −50%</option>
+            <option value="new_entrant_2025_50">Neo-iscritto nel 2025 −50%</option>
+          </select>
         </div>
       </div>
 

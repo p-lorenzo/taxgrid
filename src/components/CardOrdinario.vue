@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { useTaxStore } from '../store/taxStore'
-import { Switch } from '@headlessui/vue'
 import InfoTooltip from './InfoTooltip.vue'
 
 const store = useTaxStore()
@@ -25,7 +24,10 @@ defineEmits<{
             <path d="M7 2a2 2 0 100 4 2 2 0 000-4zM7 8a2 2 0 100 4 2 2 0 000-4zM7 14a2 2 0 100 4 2 2 0 000-4zM13 2a2 2 0 100 4 2 2 0 000-4zM13 8a2 2 0 100 4 2 2 0 000-4zM13 14a2 2 0 100 4 2 2 0 000-4z" />
           </svg>
         </div>
-        <h3 class="text-xl font-bold text-blue-800 dark:text-blue-300">Regime Ordinario</h3>
+        <div>
+          <h3 class="text-xl font-bold text-blue-800 dark:text-blue-300">Regime Ordinario</h3>
+          <span class="text-[10px] font-bold uppercase tracking-wide text-blue-700 dark:text-blue-300">Stima</span>
+        </div>
       </div>
     </div>
     
@@ -37,36 +39,22 @@ defineEmits<{
             <InfoTooltip text="Gestione Separata: contributi calcolati in percentuale senza minimale fisso. Artigiani/Commercianti: contributi fissi minimi + quota percentuale." />
           </label>
           <select v-model="store.ordinarioCassa" class="block w-full py-2 px-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg shadow-sm focus:ring-[#e2af0d] focus:border-[#e2af0d] sm:text-sm print:hidden">
-            <option value="gestione_separata">Gestione Separata (Pro)</option>
-            <option value="artigiani">Artigiani e Commercianti</option>
+            <option value="gestione_separata">Gestione Separata (Professionisti)</option>
+            <option value="artigiani">Artigiani</option>
+            <option value="commercianti">Commercianti</option>
           </select>
           <div class="hidden print:block text-sm font-bold text-gray-900 py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg">
-            {{ store.ordinarioCassa === 'gestione_separata' ? 'Gestione Separata (Pro)' : 'Artigiani e Commercianti' }}
+            {{ store.ordinarioCassa === 'gestione_separata' ? 'Gestione Separata (Professionisti)' : store.ordinarioCassa === 'artigiani' ? 'Artigiani' : 'Commercianti' }}
           </div>
         </div>
 
-        <!-- INPS Reductions (Artigiani only) -->
-        <div v-if="store.ordinarioCassa === 'artigiani'" class="flex flex-col gap-3 pt-2">
-          <div class="flex items-center justify-between">
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
-              Riduzione INPS 50%
-              <InfoTooltip text="Applicabile ai pensionati Over 65 (già titolari di pensione INPS) o a specifici neo-iscritti alla gestione Artigiani/Commercianti." />
-            </span>
-            <Switch
-              v-model="store.ordinarioRiduzione50"
-              :class="store.ordinarioRiduzione50 ? 'bg-[#e2af0d]' : 'bg-gray-200 dark:bg-gray-600'"
-              class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#e2af0d] focus:ring-offset-2 dark:focus:ring-offset-gray-800 print:hidden"
-            >
-              <span class="sr-only">Toggle Riduzione 50%</span>
-              <span
-                :class="store.ordinarioRiduzione50 ? 'translate-x-6' : 'translate-x-1'"
-                class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-              />
-            </Switch>
-            <span class="hidden print:inline-block text-sm font-bold text-gray-900">
-              {{ store.ordinarioRiduzione50 ? 'Sì' : 'No' }}
-            </span>
-          </div>
+        <div v-if="store.ordinarioCassa !== 'gestione_separata'" class="pt-2">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Agevolazione contributiva 2026</label>
+          <select v-model="store.ordinarioContributionRelief" class="block w-full py-2 px-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg text-sm print:hidden">
+            <option value="none">Nessuna</option>
+            <option value="pensioner_50">Pensionato INPS over 65 −50%</option>
+            <option value="new_entrant_2025_50">Neo-iscritto nel 2025 −50%</option>
+          </select>
         </div>
       </div>
 

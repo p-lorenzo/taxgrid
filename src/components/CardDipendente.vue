@@ -24,7 +24,10 @@ defineEmits<{
             <path d="M7 2a2 2 0 100 4 2 2 0 000-4zM7 8a2 2 0 100 4 2 2 0 000-4zM7 14a2 2 0 100 4 2 2 0 000-4zM13 2a2 2 0 100 4 2 2 0 000-4zM13 8a2 2 0 100 4 2 2 0 000-4zM13 14a2 2 0 100 4 2 2 0 000-4z" />
           </svg>
         </div>
-        <h3 class="text-xl font-bold text-blue-800 dark:text-blue-300">Dipendente</h3>
+        <div>
+          <h3 class="text-xl font-bold text-blue-800 dark:text-blue-300">Dipendente</h3>
+          <span class="text-[10px] font-bold uppercase tracking-wide text-blue-700 dark:text-blue-300">Stima</span>
+        </div>
       </div>
     </div>
     
@@ -34,11 +37,11 @@ defineEmits<{
           <p v-if="store.inputMode === 'ral'">
             La <strong>RAL inserita ({{ formatCurrency(store.fatturato) }})</strong> corrisponde al tuo lordo annuo.
             Per il confronto con gli altri regimi, viene calcolato un fatturato equivalente
-            (<strong>{{ formatCurrency(store.dipendenteResult.fatturatoEquivalente) }}</strong> = RAL + contributi a carico azienda).
+            (<strong>{{ formatCurrency(store.dipendenteResult.fatturatoEquivalente) }}</strong> = RAL + contributi datore stimati).
           </p>
           <p v-else>
             Il <strong>Fatturato Annuo ({{ formatCurrency(store.fatturato) }})</strong> viene considerato come il
-            <strong>Costo Aziendale Totale</strong>. Da qui si ricava la RAL
+            <strong>costo contributivo aziendale stimato</strong>. Da qui si ricava la RAL
             (<strong>{{ formatCurrency(store.dipendenteResult.ral) }}</strong>) sottraendo i contributi a carico dell'azienda.
           </p>
         </div>
@@ -46,7 +49,7 @@ defineEmits<{
         <div class="flex justify-between text-sm py-1">
           <span class="text-gray-500 dark:text-gray-400 flex items-center">
             RAL Calcolata
-            <InfoTooltip text="La Retribuzione Annua Lorda calcolata a partire dal costo aziendale totale, sottraendo i contributi previdenziali a carico dell'azienda." />
+            <InfoTooltip text="Stima basata sulle aliquote configurate. Non include automaticamente TFR, INAIL, fondi, welfare e costi indiretti." />
           </span>
           <span class="font-medium text-gray-900 dark:text-white">{{ formatCurrency(store.dipendenteResult.ral) }}</span>
         </div>
