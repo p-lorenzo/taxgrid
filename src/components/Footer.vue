@@ -1,3 +1,9 @@
+<script setup lang="ts">
+import { RULE_METADATA } from '../fiscal-rules'
+
+const normativeSources = Object.values(RULE_METADATA)
+</script>
+
 <template>
   <footer class="mt-16 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 py-12 text-sm text-gray-600 dark:text-gray-400 transition-colors duration-300 print:hidden">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -11,7 +17,7 @@
               TaxGrid
             </span>
             <span class="text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 font-medium border border-blue-200/50 dark:border-blue-700/30">
-              Normativa 2025
+              Normativa 2026
             </span>
           </div>
           <p class="text-gray-500 dark:text-gray-400">
@@ -102,8 +108,14 @@
       <div class="pt-8 border-t border-gray-200 dark:border-gray-800 text-center">
         <p class="text-xs text-gray-400 dark:text-gray-500 max-w-4xl mx-auto leading-relaxed">
           <span class="font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-[9px] block mb-1">Disclaimer Legale</span>
-          TaxGrid è un simulatore orientativo non ufficiale. Le aliquote, le soglie, i massimali contributivi e gli scaglioni IRPEF fanno riferimento alla normativa vigente per l'anno fiscale 2025. I calcoli generati sono stime matematiche semplificate e non costituiscono in alcun modo consulenza fiscale, legale o finanziaria. Per qualsiasi decisione o adempimento finanziario, rivolgiti sempre a un commercialista iscritto all'albo o a un professionista abilitato.
+          TaxGrid è un simulatore orientativo non ufficiale riferito all'anno fiscale 2026. Il forfettario usa regole normative parametrizzate; ordinario, dipendente, addizionali e SRL includono assunzioni e semplificazioni evidenziate nell'interfaccia. I risultati rappresentano il carico economico annuo, non il calendario di saldo e acconti, e non costituiscono consulenza fiscale, legale o finanziaria. Per decisioni o adempimenti rivolgiti a un professionista abilitato.
         </p>
+        <div class="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-[10px] text-gray-500 dark:text-gray-400">
+          <span>Aggiornato il {{ normativeSources[0].updatedAt.split('-').reverse().join('/') }}</span>
+          <a v-for="source in normativeSources" :key="source.sourceUrl" :href="source.sourceUrl" target="_blank" rel="noopener noreferrer" class="underline decoration-dotted hover:text-blue-600 dark:hover:text-blue-300">
+            {{ source.source }}
+          </a>
+        </div>
       </div>
     </div>
   </footer>
