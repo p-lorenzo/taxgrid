@@ -13,7 +13,6 @@ import InfoTooltip from './components/InfoTooltip.vue'
 import draggable from 'vuedraggable'
 import PrintReport from './components/PrintReport.vue'
 import PwaInstallPrompt from './components/PwaInstallPrompt.vue'
-import KoFiSupport from './components/KoFiSupport.vue'
 import { computed, ref } from 'vue'
 
 const store = useTaxStore()
@@ -522,8 +521,6 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
     <div class="max-w-[1600px] w-full mx-auto mt-12">
       <ComparisonChart />
     </div>
-
-    <KoFiSupport />
 
     <p class="max-w-5xl mx-auto mt-8 text-center text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
       I risultati rappresentano il carico fiscale economico annuo stimato, non il calendario di cassa di saldi e acconti.
