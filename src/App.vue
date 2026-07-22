@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useTaxStore, ALIQUOTA_INPS_DATORE } from './store/taxStore'
+import { useTaxStore } from './store/taxStore'
 import { Switch } from '@headlessui/vue'
 import Footer from './components/Footer.vue'
 import ComparisonChart from './components/ComparisonChart.vue'
@@ -13,6 +13,7 @@ import InfoTooltip from './components/InfoTooltip.vue'
 import draggable from 'vuedraggable'
 import PrintReport from './components/PrintReport.vue'
 import PwaInstallPrompt from './components/PwaInstallPrompt.vue'
+import KoFiSupport from './components/KoFiSupport.vue'
 import { computed, ref } from 'vue'
 
 const store = useTaxStore()
@@ -35,6 +36,10 @@ const gridColsClass = computed(() => {
 
 const printPage = () => {
   window.print()
+}
+
+const changeInputMode = (isRal: boolean) => {
+  store.convertInputMode(isRal ? 'ral' : 'fatturato')
 }
 
 const shareToastVisible = ref(false)
@@ -117,6 +122,9 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
           <p class="text-lg text-gray-600 dark:text-gray-400 max-w-2xl">
             Simula e compara in tempo reale i regimi fiscali italiani per scoprire il tuo vero netto in tasca.
           </p>
+          <span class="inline-flex mt-3 items-center rounded-full bg-blue-100 dark:bg-blue-950/50 px-3 py-1 text-xs font-bold text-blue-700 dark:text-blue-300">
+            Anno fiscale {{ store.fiscalYear }}
+          </span>
         </div>
         <ThemeToggle />
       </header>
@@ -145,14 +153,15 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div>
             <div class="flex items-center justify-between mb-2">
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
                 {{ store.inputMode === 'ral' ? 'RAL (Retribuzione Annua Lorda)' : 'Fatturato Annuo Stimato' }}
+                <InfoTooltip text="La conversione è comparativa e usa il contributo datore configurabile. Non rappresenta il costo aziendale totale reale: TFR, INAIL, fondi e altri costi possono variare." />
               </label>
               <div class="flex items-center gap-1.5">
                 <span class="text-xs text-gray-500 dark:text-gray-400 font-medium">Fatt.</span>
                 <Switch
                   :model-value="store.inputMode === 'ral'"
-                  @update:model-value="(val: boolean) => { const newMode = val ? 'ral' : 'fatturato'; if (store.inputMode !== newMode) { const factor = 1 + ALIQUOTA_INPS_DATORE; store.fatturato = store.inputMode === 'ral' ? Math.round(store.fatturato * factor * 100) / 100 : Math.round(store.fatturato / factor * 100) / 100; store.inputMode = newMode; } }"
+                  @update:model-value="changeInputMode"
                   :class="store.inputMode === 'ral' ? 'bg-[#e2af0d]' : 'bg-gray-200 dark:bg-gray-600'"
                   class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#e2af0d]"
                 >
@@ -180,12 +189,12 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
             <div v-if="!store.advancedMode">
               <div class="relative print:hidden">
                 <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">€</span>
-                <input type="number" v-model="store.speseDeducibili" class="block w-full pl-8 pr-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
+                <input type="number" v-model="store.costiOperativiReali" class="block w-full pl-8 pr-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
               </div>
               <div class="hidden print:block text-lg font-bold text-gray-900 bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-xl border border-gray-200 min-h-[42px] flex items-center">
-                {{ formatCurrency(store.speseDeducibili) }}
+                {{ formatCurrency(store.costiOperativiReali) }}
               </div>
-              <p class="text-xs text-gray-500 mt-1 print:hidden">Spese operative generiche deducibili dal reddito.</p>
+              <p class="text-xs text-gray-500 mt-1 print:hidden">In modalità semplice sono considerate anche fiscalmente deducibili dove previsto.</p>
             </div>
 
             <!-- Advanced Mode Placeholder -->
@@ -210,6 +219,10 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
                 {{ cat.name }}
               </option>
             </select>
+            <div v-if="store.atecoCategory === 'custom'" class="relative mt-2 print:hidden">
+              <input type="number" min="0" max="100" step="1" :value="store.atecoCoef * 100" @input="store.atecoCoef = Number(($event.target as HTMLInputElement).value) / 100" class="block w-full pr-8 pl-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm" />
+              <span class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 text-xs">%</span>
+            </div>
             <div class="hidden print:block text-xs font-semibold text-gray-900 bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-xl border border-gray-200 min-h-[42px] flex items-center leading-tight">
               {{ store.ATECO_CATEGORIES.find(c => c.id === store.atecoCategory)?.name || store.atecoCategory }}
             </div>
@@ -275,15 +288,23 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
             </h4>
             <div class="space-y-4">
               <div>
-                <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Spese Deducibili</label>
+                <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Costi operativi reali</label>
                 <div class="relative print:hidden">
                   <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-gray-400 text-xs">€</span>
-                  <input type="number" v-model="store.speseDeducibili" class="block w-full pl-7 pr-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
+                  <input type="number" v-model="store.costiOperativiReali" class="block w-full pl-7 pr-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
                 </div>
                 <div class="hidden print:block text-sm font-bold text-gray-900 bg-white dark:bg-gray-850 px-2.5 py-1.5 rounded-lg border border-gray-200 min-h-[34px] flex items-center">
-                  {{ formatCurrency(store.speseDeducibili) }}
+                  {{ formatCurrency(store.costiOperativiReali) }}
                 </div>
-                <p class="text-[10px] text-gray-400 mt-1 print:hidden">Riducono il reddito imponibile</p>
+                <p class="text-[10px] text-gray-400 mt-1 print:hidden">Incidono sul netto economico in tutti i regimi</p>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Costi fiscalmente deducibili</label>
+                <div class="relative print:hidden">
+                  <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-gray-400 text-xs">€</span>
+                  <input type="number" v-model="store.costiFiscalmenteDeducibili" class="block w-full pl-7 pr-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
+                </div>
+                <p class="text-[10px] text-gray-400 mt-1 print:hidden">Riducono l’imponibile del regime ordinario</p>
               </div>
               <div>
                 <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1 flex items-center">
@@ -328,8 +349,8 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
               <div v-if="store.hasLavoroDipendente" class="space-y-3 pt-2 border-t border-gray-200/50 dark:border-gray-700/30">
                 <div>
                   <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1 flex items-center">
-                    RAL (Reddito Annuo Lordo)
-                    <InfoTooltip text="Retribuzione Annua Lorda da lavoro dipendente. Determina lo scaglione IRPEF di partenza in caso di cumulo con la partita IVA." />
+                    RAL corrente
+                    <InfoTooltip text="La RAL viene trasformata in imponibile fiscale sottraendo i contributi dipendente stimati; non viene sommata direttamente al reddito P.IVA." />
                   </label>
                   <div class="relative print:hidden">
                     <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-gray-400 text-xs">€</span>
@@ -340,12 +361,15 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
                   </div>
                 </div>
 
-                <div class="flex items-center space-x-2 py-1">
-                  <input type="checkbox" id="fullTimeCheck" v-model="store.dipendenteFullTime" class="h-4 w-4 text-[#e2af0d] focus:ring-[#e2af0d] border-gray-300 dark:border-gray-600 rounded print:hidden" />
-                  <span class="hidden print:inline-block text-xs font-bold text-gray-900">
-                    [ {{ store.dipendenteFullTime ? 'X' : ' ' }} ]
-                  </span>
-                  <label for="fullTimeCheck" class="text-xs font-semibold text-gray-600 dark:text-gray-400 cursor-pointer">Contratto Full-Time?</label>
+                <div>
+                  <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1 flex items-center">
+                    Reddito dipendente/assimilato anno precedente
+                    <InfoTooltip text="Dato fiscalmente rilevante per la causa ostativa del forfettario 2026; è distinto dalla RAL corrente." />
+                  </label>
+                  <div class="relative print:hidden">
+                    <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-gray-400 text-xs">€</span>
+                    <input type="number" v-model="store.redditoDipendentePrecedente" class="block w-full pl-7 pr-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -359,8 +383,8 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
             <div class="space-y-4">
               <div>
                 <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1 flex items-center">
-                  Addizionale Regionale
-                  <InfoTooltip text="Imposta regionale aggiuntiva calcolata sull'imponibile IRPEF dei regimi ordinari e dipendenti. Medie regionali: 1.2% - 3.3%." />
+                  Addizionale regionale stimata
+                  <InfoTooltip text="Aliquota media/effettiva semplificata. Non modella scaglioni, esenzioni e regole specifiche della regione." />
                 </label>
                 <div class="relative print:hidden">
                   <input type="number" step="0.01" v-model="store.addizionaleRegionale" class="block w-full pr-7 pl-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
@@ -372,8 +396,8 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
               </div>
               <div>
                 <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1 flex items-center">
-                  Addizionale Comunale
-                  <InfoTooltip text="Imposta comunale aggiuntiva calcolata sull'imponibile IRPEF. Medie comunali: Milano 0.8%, Roma e Napoli 0.9%." />
+                  Addizionale comunale stimata
+                  <InfoTooltip text="Aliquota media/effettiva semplificata. Non modella soglie, acconto e regole specifiche del comune." />
                 </label>
                 <div class="relative print:hidden">
                   <input type="number" step="0.01" v-model="store.addizionaleComunale" class="block w-full pr-7 pl-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
@@ -395,7 +419,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
               <div>
                 <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1 flex items-center">
                   Massimale Contributivo
-                  <InfoTooltip text="Soglia massima di imponibile previdenziale (119.650€ per il 2025) oltre la quale non sono dovuti contributi pensionistici." />
+                  <InfoTooltip text="Massimale Gestione Separata 2026: 122.295 €. Il campo resta modificabile per scenari particolari." />
                 </label>
                 <div class="relative print:hidden">
                   <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-gray-400 text-xs">€</span>
@@ -404,6 +428,25 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
                 <div class="hidden print:block text-sm font-bold text-gray-900 bg-white dark:bg-gray-850 px-2.5 py-1.5 rounded-lg border border-gray-200 min-h-[34px] flex items-center">
                   {{ formatCurrency(store.massimaleInps) }}
                 </div>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1 flex items-center">
+                  Iscrizione Artigiani/Commercianti
+                  <InfoTooltip text="L’obbligo non viene dedotto automaticamente dal contratto full-time: dipende da attività, abitualità e prevalenza." />
+                </label>
+                <select v-model="store.businessEnrollment" class="block w-full py-1.5 px-2.5 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg print:hidden">
+                  <option value="unknown">Da verificare</option>
+                  <option value="required">Iscrizione dovuta</option>
+                  <option value="not_required">Iscrizione non dovuta</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">INPS dipendente stimata</label>
+                <div class="relative"><input type="number" step="0.01" v-model="store.aliquotaInpsDipendente" class="block w-full pr-7 pl-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700" /><span class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-400 text-xs">%</span></div>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Contributi datore stimati</label>
+                <div class="relative"><input type="number" step="0.01" v-model="store.aliquotaContributivaDatore" class="block w-full pr-7 pl-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700" /><span class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-400 text-xs">%</span></div>
               </div>
             </div>
           </div>
@@ -444,6 +487,12 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
         </div>
       </div>
 
+      <div v-if="store.validationIssues.length" class="max-w-7xl mx-auto mb-8 space-y-2">
+        <div v-for="(issue, index) in store.validationIssues" :key="`${issue.scope}-${index}`" :class="issue.severity === 'error' ? 'border-red-300 bg-red-50 text-red-800 dark:bg-red-950/30 dark:text-red-200' : 'border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-200'" class="rounded-xl border px-4 py-3 text-sm">
+          {{ issue.message }}
+        </div>
+      </div>
+
     </div> <!-- Fine contenitore max-w-7xl -->
 
     <!-- Contenitore più largo per le card -->
@@ -473,6 +522,12 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
     <div class="max-w-[1600px] w-full mx-auto mt-12">
       <ComparisonChart />
     </div>
+
+    <KoFiSupport />
+
+    <p class="max-w-5xl mx-auto mt-8 text-center text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+      I risultati rappresentano il carico fiscale economico annuo stimato, non il calendario di cassa di saldi e acconti.
+    </p>
 
     <Footer />
     </div>
