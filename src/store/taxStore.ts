@@ -67,12 +67,12 @@ export const useTaxStore = defineStore('taxStore', () => {
   const ralDipendente = ref(0)
   const redditoDipendentePrecedente = ref(0)
   const dipendenteFullTime = ref(false)
-  const aliquotaInpsDipendente = ref(FISCAL_RULES_2026.employee.estimatedContributionRate * 100)
-  const aliquotaContributivaDatore = ref(FISCAL_RULES_2026.employee.estimatedEmployerContributionRate * 100)
+  const aliquotaInpsDipendente = ref<number>(FISCAL_RULES_2026.employee.estimatedContributionRate * 100)
+  const aliquotaContributivaDatore = ref<number>(FISCAL_RULES_2026.employee.estimatedEmployerContributionRate * 100)
 
-  const addizionaleRegionale = ref(FISCAL_RULES_2026.localTaxes.estimatedRegionalRate)
-  const addizionaleComunale = ref(FISCAL_RULES_2026.localTaxes.estimatedMunicipalRate)
-  const massimaleInps = ref(FISCAL_RULES_2026.inps.gestioneSeparata.maximumIncome)
+  const addizionaleRegionale = ref<number>(FISCAL_RULES_2026.localTaxes.estimatedRegionalRate)
+  const addizionaleComunale = ref<number>(FISCAL_RULES_2026.localTaxes.estimatedMunicipalRate)
+  const massimaleInps = ref<number>(FISCAL_RULES_2026.inps.gestioneSeparata.maximumIncome)
   const businessEnrollment = ref<EnrollmentStatus>('unknown')
 
   const showForfettario = ref(true)
@@ -89,7 +89,7 @@ export const useTaxStore = defineStore('taxStore', () => {
   const ordinarioContributionRelief = ref<ContributionRelief>('none')
 
   const srlDistribuzione = ref<'compenso' | 'utili'>('compenso')
-  const srlCostiFissi = ref(FISCAL_RULES_2026.srl.estimatedFixedCosts)
+  const srlCostiFissi = ref<number>(FISCAL_RULES_2026.srl.estimatedFixedCosts)
   const srlSocioLavoratore = ref(false)
   const srlSocioCassa = ref<BusinessFund>('artigiani')
   const srlContributionRelief = ref<ContributionRelief>('none')

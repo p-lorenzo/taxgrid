@@ -23,7 +23,11 @@ const nextTick = () => new Promise((resolve) => setTimeout(resolve, 0))
 describe('TaxStore 2026 fiscal engine', () => {
   beforeEach(() => {
     localStorage.clear()
-    window.location = new URL('https://taxgrid.it/') as unknown as Location
+    Object.defineProperty(window, 'location', {
+      value: new URL('https://taxgrid.it/'),
+      writable: true,
+      configurable: true,
+    })
     setActivePinia(createPinia())
   })
 
