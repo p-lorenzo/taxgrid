@@ -74,28 +74,3 @@ export function calculateBusinessContributions(input: BusinessContributionInput)
   }
 }
 
-export interface AdministratorContributionResult {
-  total: number
-  company: number
-  administrator: number
-  totalRate: number
-  companyRate: number
-  administratorRate: number
-  taxableCompensation: number
-}
-
-export function calculateAdministratorContributions(
-  grossCompensation: number,
-  hasOtherCoverage: boolean,
-  maximumIncomeOverride?: number,
-): AdministratorContributionResult {
-  const rules = FISCAL_RULES_2026.inps.gestioneSeparata
-  const totalRate = hasOtherCoverage ? rules.administrator.otherCoverageRate : rules.administrator.standardRate
-  const companyRate = totalRate * rules.administrator.companyShare
-  const administratorRate = totalRate * rules.administrator.administratorShare
-  const taxableCompensation = Math.min(Math.max(grossCompensation, 0), maximumIncomeOverride ?? rules.maximumIncome)
-  const company = taxableCompensation * companyRate
-  const administrator = taxableCompensation * administratorRate
-  return { total: company + administrator, company, administrator, totalRate, companyRate, administratorRate, taxableCompensation }
-}
-

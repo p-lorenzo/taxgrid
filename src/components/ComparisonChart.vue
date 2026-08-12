@@ -57,31 +57,6 @@ const chartData = computed(() => {
     })
   }
 
-  // SRL
-  if (store.showSrl) {
-    const res = store.srlResult
-    const spese = store.costiOperativiReali
-    const costiFissi = store.srlCostiFissi
-    const totaleSpeseCosti = spese + costiFissi
-    const rawSegments = [
-      { label: 'Netto in Tasca', value: res.netto, color: 'bg-[#e2af0d]' },
-      { label: 'INPS / Contributi', value: res.inps, color: 'bg-blue-500 dark:bg-blue-600' },
-      { label: 'Tasse (Società+IRPEF)', value: res.tasse, color: 'bg-red-500 dark:bg-red-600' },
-      { label: 'Spese & Costi Fissi', value: totaleSpeseCosti, color: 'bg-gray-400 dark:bg-gray-500' }
-    ]
-    const validSegments = rawSegments.map(s => ({ ...s, value: Math.max(0, s.value) }))
-    const sum = validSegments.reduce((a, b) => a + b.value, 0)
-    data.push({
-      id: 'srl',
-      name: 'Società (S.R.L.)',
-      netto: res.netto,
-      segments: validSegments.filter(s => s.value > 0).map(s => ({
-        ...s,
-        percentage: sum > 0 ? (s.value / sum) * 100 : 0
-      }))
-    })
-  }
-
   // Dipendente
   if (store.showDipendente) {
     const res = store.dipendenteResult

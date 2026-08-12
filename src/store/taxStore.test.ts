@@ -141,26 +141,6 @@ describe('TaxStore 2026 fiscal engine', () => {
     expect(store.forfettarioContributionRelief).toBe('none')
   })
 
-  it('uses the 2026 administrator rate and configurable SRL costs', () => {
-    const store = useTaxStore()
-    store.costiOperativiReali = 0
-    store.srlCostiFissi = 4_000
-    const firstProfit = store.srlResult.operatingProfit
-    const totalAdministratorInps = store.srlResult.administratorCompanyInps + store.srlResult.administratorPersonalInps
-    expect(totalAdministratorInps).toBeCloseTo(store.srlResult.administratorGrossCompensation * 0.3503, 2)
-    store.srlCostiFissi = 7_000
-    expect(store.srlResult.operatingProfit).toBe(firstProfit - 3_000)
-  })
-
-  it('keeps administrator and working-shareholder roles separate', () => {
-    const store = useTaxStore()
-    const administratorOnly = store.srlResult.inps
-    store.srlSocioLavoratore = true
-    store.srlSocioCassa = 'commercianti'
-    store.businessEnrollment = 'required'
-    expect(store.srlResult.inps).toBeGreaterThan(administratorOnly)
-  })
-
   it.each([
     [85_000, 'ok'],
     [90_000, 'warning'],

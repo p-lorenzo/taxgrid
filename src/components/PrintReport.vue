@@ -10,51 +10,44 @@ const formattedDate = computed(() => new Intl.DateTimeFormat('it-IT', { dateStyl
 const activeColumns = computed(() => [
   store.showForfettario && { id: 'forfettario', name: 'Forfettario', precision: 'Alta precisione' },
   store.showOrdinario && { id: 'ordinario', name: 'Ordinario', precision: 'Stima' },
-  store.showSrl && { id: 'srl', name: `SRL — ${store.srlDistribuzione === 'compenso' ? 'Compenso' : 'Utili'}`, precision: 'Stima semplificata' },
   store.showDipendente && { id: 'dipendente', name: 'Dipendente', precision: 'Stima' },
-].filter(Boolean) as Array<{ id: 'forfettario' | 'ordinario' | 'srl' | 'dipendente'; name: string; precision: string }>)
+].filter(Boolean) as Array<{ id: 'forfettario' | 'ordinario' | 'dipendente'; name: string; precision: string }>)
 
 const rows = computed(() => [
   {
     label: 'Fatturato / costo contributivo stimato',
     forfettario: formatCurrency(store.effectiveFatturato),
     ordinario: formatCurrency(store.effectiveFatturato),
-    srl: formatCurrency(store.effectiveFatturato),
     dipendente: formatCurrency(store.dipendenteResult.fatturatoEquivalente),
   },
   {
     label: 'Costi operativi reali',
     forfettario: formatCurrency(store.costiOperativiReali),
     ordinario: formatCurrency(store.costiOperativiReali),
-    srl: `${formatCurrency(store.costiOperativiReali)} + ${formatCurrency(store.srlCostiFissi)} amministrativi`,
     dipendente: formatCurrency(store.costiOperativiReali),
   },
   ...(store.advancedMode ? [{
     label: 'Costi fiscalmente deducibili',
     forfettario: 'Non applicabili',
     ordinario: formatCurrency(store.costiFiscalmenteDeducibili),
-    srl: 'Inclusi nella stima operativa',
     dipendente: 'Non applicabili',
   }] : []),
   {
     label: 'Contributi previdenziali',
     forfettario: formatCurrency(store.forfettarioResult.inps),
     ordinario: formatCurrency(store.ordinarioResult.inps),
-    srl: formatCurrency(store.srlResult.inps),
     dipendente: formatCurrency(store.dipendenteResult.inps),
   },
   {
     label: 'Imposte stimate',
     forfettario: formatCurrency(store.forfettarioResult.tasse),
     ordinario: formatCurrency(store.ordinarioResult.tasse),
-    srl: formatCurrency(store.srlResult.tasse),
     dipendente: formatCurrency(store.dipendenteResult.tasse),
   },
   {
     label: 'Netto annuo in tasca',
     forfettario: formatCurrency(store.forfettarioResult.netto),
     ordinario: formatCurrency(store.ordinarioResult.netto),
-    srl: formatCurrency(store.srlResult.netto),
     dipendente: formatCurrency(store.dipendenteResult.netto),
     isBold: true,
   },
@@ -62,16 +55,14 @@ const rows = computed(() => [
     label: `Netto mensile (${store.mesiParagone} mensilità)`,
     forfettario: formatCurrency(store.forfettarioResult.nettoMensile),
     ordinario: formatCurrency(store.ordinarioResult.nettoMensile),
-    srl: formatCurrency(store.srlResult.nettoMensile),
     dipendente: formatCurrency(store.dipendenteResult.nettoMensile),
     isBold: true,
   },
 ])
 
-const stepsFor = (id: 'forfettario' | 'ordinario' | 'srl' | 'dipendente') => {
+const stepsFor = (id: 'forfettario' | 'ordinario' | 'dipendente') => {
   if (id === 'forfettario') return store.forfettarioResult.breakdown.steps
   if (id === 'ordinario') return store.ordinarioResult.breakdown.steps
-  if (id === 'srl') return store.srlResult.breakdown.steps
   return store.dipendenteResult.breakdown.steps
 }
 </script>
@@ -136,7 +127,7 @@ const stepsFor = (id: 'forfettario' | 'ordinario' | 'srl' | 'dipendente') => {
     <div class="mt-12 pt-8 border-t-2 border-gray-400 flex items-center justify-between gap-6 print:break-inside-avoid font-sans">
       <div class="text-[10px] text-gray-500 max-w-xl leading-relaxed">
         <p class="font-bold text-gray-700 mb-1 uppercase">Disclaimer</p>
-        <p>Simulazione orientativa riferita al {{ store.fiscalYear }}. Ordinario, dipendente, addizionali e SRL includono assunzioni semplificate; la SRL non modella una base IRAP autonoma. Gli importi rappresentano il carico economico annuo e non il calendario di saldo e acconti. Il report non costituisce consulenza fiscale, previdenziale o societaria.</p>
+        <p>Simulazione orientativa riferita al {{ store.fiscalYear }}. Ordinario e dipendente includono assunzioni semplificate evidenziate nell’interfaccia. Gli importi rappresentano il carico economico annuo e non il calendario di saldo e acconti. Il report non costituisce consulenza fiscale, previdenziale o societaria.</p>
       </div>
       <div class="flex items-center gap-4 border border-gray-300 p-3.5 bg-gray-50 rounded-lg">
         <qrcode-vue :value="store.buildShareUrl()" :size="70" level="M" render-as="svg" :margin="1" />

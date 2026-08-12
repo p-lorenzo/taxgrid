@@ -114,11 +114,5 @@ export const FISCAL_RULES_2026 = {
     startupRate: 0.05,
     ordinaryRate: 0.15,
   },
-  srl: {
-    estimatedFixedCosts: 4_000,
-    iresRate: 0.24,
-    estimatedIrapRate: 0.039,
-    dividendRate: 0.26,
-  },
 } as const
 

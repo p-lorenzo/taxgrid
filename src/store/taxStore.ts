@@ -2,14 +2,12 @@ import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { FISCAL_RULES_2026, FISCAL_YEAR } from '../fiscal-rules'
 import type {
-  BusinessFund,
   ContributionRelief,
   EnrollmentStatus,
   FiscalYear,
   PrevidentialFund,
 } from '../fiscal-rules'
 import {
-  calculateAdministratorContributions,
   calculateBusinessContributions,
   calculatePersonalTaxPosition,
   describeProgressiveTax,
@@ -29,7 +27,7 @@ export interface BreakdownStep {
 }
 
 export interface ValidationIssue {
-  scope: 'forfettario' | 'ordinario' | 'srl' | 'dipendente' | 'global'
+  scope: 'forfettario' | 'ordinario' | 'dipendente' | 'global'
   severity: 'info' | 'warning' | 'error'
   message: string
 }
@@ -77,9 +75,8 @@ export const useTaxStore = defineStore('taxStore', () => {
 
   const showForfettario = ref(true)
   const showOrdinario = ref(true)
-  const showSrl = ref(true)
   const showDipendente = ref(true)
-  const cardOrder = ref<string[]>(['forfettario', 'ordinario', 'srl', 'dipendente'])
+  const cardOrder = ref<string[]>(['forfettario', 'ordinario', 'dipendente'])
 
   const forfettarioCassa = ref<PrevidentialFund>('gestione_separata')
   const forfettarioStartup = ref(false)
@@ -87,12 +84,6 @@ export const useTaxStore = defineStore('taxStore', () => {
 
   const ordinarioCassa = ref<PrevidentialFund>('gestione_separata')
   const ordinarioContributionRelief = ref<ContributionRelief>('none')
-
-  const srlDistribuzione = ref<'compenso' | 'utili'>('compenso')
-  const srlCostiFissi = ref<number>(FISCAL_RULES_2026.srl.estimatedFixedCosts)
-  const srlSocioLavoratore = ref(false)
-  const srlSocioCassa = ref<BusinessFund>('artigiani')
-  const srlContributionRelief = ref<ContributionRelief>('none')
 
   const expensesMode = computed({
     get: () => advancedMode.value ? 'advanced' : 'simple',
@@ -119,17 +110,6 @@ export const useTaxStore = defineStore('taxStore', () => {
   const ordinarioRiduzione50 = computed({
     get: () => ['pensioner_50', 'new_entrant_2025_50'].includes(ordinarioContributionRelief.value),
     set: (active: boolean) => { ordinarioContributionRelief.value = active ? 'pensioner_50' : 'none' },
-  })
-  const srlRiduzione50 = computed({
-    get: () => ['pensioner_50', 'new_entrant_2025_50'].includes(srlContributionRelief.value),
-    set: (active: boolean) => { srlContributionRelief.value = active ? 'pensioner_50' : 'none' },
-  })
-  const srlCassa = computed({
-    get: (): PrevidentialFund => srlSocioLavoratore.value ? srlSocioCassa.value : 'gestione_separata',
-    set: (fund: PrevidentialFund) => {
-      srlSocioLavoratore.value = fund !== 'gestione_separata'
-      if (fund !== 'gestione_separata') srlSocioCassa.value = fund
-    },
   })
 
   const employerContributionRate = computed(() => Math.max(aliquotaContributivaDatore.value, 0) / 100)
@@ -372,136 +352,6 @@ export const useTaxStore = defineStore('taxStore', () => {
     }
   })
 
-  const solveAdministratorGrossCompensation = (availableCompanyCash: number, companyRate: number) => {
-    const provisional = availableCompanyCash / (1 + companyRate)
-    if (provisional <= contributionCap.value) return provisional
-    return Math.max(availableCompanyCash - contributionCap.value * companyRate, 0)
-  }
-
-  const srlResult = computed(() => {
-    const revenue = Math.max(effectiveFatturato.value, 0)
-    const operatingCosts = Math.max(costiOperativiReali.value, 0)
-    const fixedCosts = Math.max(srlCostiFissi.value, 0)
-    const operatingProfit = Math.max(revenue - operatingCosts - fixedCosts, 0)
-    const steps: BreakdownStep[] = [
-      { label: 'Fatturato annuo SRL', value: revenue, operator: '+' },
-      { label: 'Costi operativi', value: operatingCosts, operator: '-' },
-      { label: 'Costi amministrativi SRL stimati', value: fixedCosts, operator: '-' },
-      { label: 'Risultato operativo stimato', value: operatingProfit, operator: '=' },
-    ]
-
-    const workerContributions = srlSocioLavoratore.value
-      ? calculateBusinessContributions({
-          income: operatingProfit,
-          fund: srlSocioCassa.value,
-          enrollment: businessEnrollment.value,
-          relief: srlContributionRelief.value,
-          maximumIncomeOverride: contributionCap.value,
-        })
-      : null
-
-    let taxes = 0
-    let inps = workerContributions?.total ?? 0
-    let net = 0
-    let ires = 0
-    let irap = 0
-    let dividendTax = 0
-    let administratorCompanyInps = 0
-    let administratorPersonalInps = 0
-    let administratorGrossCompensation = 0
-
-    if (srlDistribuzione.value === 'compenso') {
-      const administratorRules = FISCAL_RULES_2026.inps.gestioneSeparata.administrator
-      const totalRate = hasJob.value ? administratorRules.otherCoverageRate : administratorRules.standardRate
-      const companyRate = totalRate * administratorRules.companyShare
-      administratorGrossCompensation = solveAdministratorGrossCompensation(operatingProfit, companyRate)
-      const administratorContributions = calculateAdministratorContributions(
-        administratorGrossCompensation,
-        hasJob.value,
-        contributionCap.value,
-      )
-      administratorCompanyInps = administratorContributions.company
-      administratorPersonalInps = administratorContributions.administrator
-      inps += administratorContributions.total
-      const administratorTaxableIncome = Math.max(administratorGrossCompensation - administratorPersonalInps, 0)
-      const basePosition = calculatePersonalTaxPosition({
-        employeeTaxableIncome: employeeTaxableIncome.value,
-        genericTaxCredits: genericTaxCredits.value,
-        regionalRatePercent: regionalRate.value,
-        municipalRatePercent: municipalRate.value,
-      })
-      const combinedPosition = calculatePersonalTaxPosition({
-        employeeTaxableIncome: employeeTaxableIncome.value + administratorTaxableIncome,
-        genericTaxCredits: genericTaxCredits.value,
-        regionalRatePercent: regionalRate.value,
-        municipalRatePercent: municipalRate.value,
-      })
-      taxes = combinedPosition.totalTaxes - basePosition.totalTaxes
-      net = administratorGrossCompensation - administratorPersonalInps - taxes - (workerContributions?.total ?? 0)
-
-      steps.push({ label: 'Compenso lordo amministratore', value: administratorGrossCompensation, operator: '=' })
-      steps.push({
-        label: `INPS amministratore — quota SRL (${(administratorContributions.companyRate * 100).toFixed(2)}%)`,
-        value: administratorCompanyInps,
-        operator: '-',
-      })
-      steps.push({
-        label: `INPS amministratore — quota personale (${(administratorContributions.administratorRate * 100).toFixed(2)}%)`,
-        value: administratorPersonalInps,
-        operator: '-',
-        details: `Aliquota totale Gestione Separata amministratori 2026: ${(administratorContributions.totalRate * 100).toFixed(2)}%.`,
-      })
-      steps.push({ label: 'Imponibile fiscale compenso', value: administratorTaxableIncome, operator: '=' })
-      steps.push({
-        label: 'Costo fiscale incrementale compenso',
-        value: taxes,
-        operator: '-',
-        details: 'Differenza fra posizione personale complessiva con e senza compenso amministratore.',
-      })
-    } else {
-      ires = operatingProfit * FISCAL_RULES_2026.srl.iresRate
-      irap = operatingProfit * FISCAL_RULES_2026.srl.estimatedIrapRate
-      const distributableProfit = Math.max(operatingProfit - ires - irap, 0)
-      dividendTax = distributableProfit * FISCAL_RULES_2026.srl.dividendRate
-      taxes = ires + irap + dividendTax
-      net = distributableProfit - dividendTax - (workerContributions?.total ?? 0)
-      steps.push({
-        label: `IRES (${(FISCAL_RULES_2026.srl.iresRate * 100).toFixed(0)}%)`,
-        value: ires,
-        operator: '-',
-        details: 'Stima su risultato operativo assunto come base imponibile IRES.',
-      })
-      steps.push({
-        label: `IRAP stimata (${(FISCAL_RULES_2026.srl.estimatedIrapRate * 100).toFixed(1)}%)`,
-        value: irap,
-        operator: '-',
-        details: 'Base IRAP reale non modellata: il risultato operativo è usato come proxy semplificata.',
-      })
-      steps.push({ label: 'Utile distribuibile stimato', value: distributableProfit, operator: '=' })
-      steps.push({ label: 'Imposta dividendi (26%)', value: dividendTax, operator: '-' })
-    }
-
-    if (workerContributions) {
-      applyContributionBreakdown(steps, srlSocioCassa.value, workerContributions, srlContributionRelief.value)
-    }
-    steps.push({ label: 'Netto in tasca socio/amministratore', value: net, operator: '=' })
-
-    return {
-      inps,
-      tasse: taxes,
-      netto: net,
-      nettoMensile: net / Math.max(mesiParagone.value, 1),
-      ires,
-      irap,
-      dividendTax,
-      administratorCompanyInps,
-      administratorPersonalInps,
-      administratorGrossCompensation,
-      operatingProfit,
-      breakdown: { steps },
-    }
-  })
-
   const dipendenteResult = computed(() => {
     const isRalMode = inputMode.value === 'ral'
     const rateDatore = employerContributionRate.value
@@ -589,7 +439,6 @@ export const useTaxStore = defineStore('taxStore', () => {
       })
     }
     const usesBusinessFund = [forfettarioCassa.value, ordinarioCassa.value].some((fund) => fund !== 'gestione_separata')
-      || srlSocioLavoratore.value
     if (usesBusinessFund && businessEnrollment.value === 'unknown') {
       issues.push({
         scope: 'global',
@@ -629,14 +478,8 @@ export const useTaxStore = defineStore('taxStore', () => {
     forfettarioContributionRelief: forfettarioContributionRelief.value,
     ordinarioCassa: ordinarioCassa.value,
     ordinarioContributionRelief: ordinarioContributionRelief.value,
-    srlDistribuzione: srlDistribuzione.value,
-    srlCostiFissi: srlCostiFissi.value,
-    srlSocioLavoratore: srlSocioLavoratore.value,
-    srlSocioCassa: srlSocioCassa.value,
-    srlContributionRelief: srlContributionRelief.value,
     showForfettario: showForfettario.value,
     showOrdinario: showOrdinario.value,
-    showSrl: showSrl.value,
     showDipendente: showDipendente.value,
     cardOrder: cardOrder.value,
   })
@@ -681,18 +524,13 @@ export const useTaxStore = defineStore('taxStore', () => {
       : 'gestione_separata'
     ordinarioContributionRelief.value = (parsed.ordinarioContributionRelief as ContributionRelief)
       ?? (parsed.ordinarioRiduzione50 ? 'pensioner_50' : 'none')
-    srlDistribuzione.value = parsed.srlDistribuzione === 'utili' ? 'utili' : 'compenso'
-    srlCostiFissi.value = Number(parsed.srlCostiFissi ?? srlCostiFissi.value)
-    const oldSrlFund = String(parsed.srlCassa ?? '')
-    srlSocioLavoratore.value = Boolean(parsed.srlSocioLavoratore ?? ['artigiani', 'commercianti'].includes(oldSrlFund))
-    srlSocioCassa.value = (parsed.srlSocioCassa === 'commercianti' || oldSrlFund === 'commercianti') ? 'commercianti' : 'artigiani'
-    srlContributionRelief.value = (parsed.srlContributionRelief as ContributionRelief)
-      ?? (parsed.srlRiduzione50 ? 'pensioner_50' : 'none')
     showForfettario.value = Boolean(parsed.showForfettario ?? showForfettario.value)
     showOrdinario.value = Boolean(parsed.showOrdinario ?? showOrdinario.value)
-    showSrl.value = Boolean(parsed.showSrl ?? showSrl.value)
     showDipendente.value = Boolean(parsed.showDipendente ?? showDipendente.value)
-    if (Array.isArray(parsed.cardOrder)) cardOrder.value = parsed.cardOrder.map(String)
+    if (Array.isArray(parsed.cardOrder)) {
+      const filtered = parsed.cardOrder.map(String).filter((id) => id !== 'srl')
+      if (filtered.length) cardOrder.value = filtered
+    }
   }
 
   const loadState = () => {
@@ -735,14 +573,8 @@ export const useTaxStore = defineStore('taxStore', () => {
           forfettarioContributionRelief: parsed.fr,
           ordinarioCassa: parsed.oc,
           ordinarioContributionRelief: parsed.or,
-          srlDistribuzione: parsed.sd,
-          srlCostiFissi: parsed.sc,
-          srlSocioLavoratore: parsed.sl,
-          srlSocioCassa: parsed.ss,
-          srlContributionRelief: parsed.sr,
           showForfettario: parsed.vf,
           showOrdinario: parsed.vo,
-          showSrl: parsed.vs,
           showDipendente: parsed.vd,
           cardOrder: parsed.co,
         })
@@ -773,9 +605,7 @@ export const useTaxStore = defineStore('taxStore', () => {
       ar: state.addizionaleRegionale, am: state.addizionaleComunale, mi: state.massimaleInps,
       be: state.businessEnrollment, fc: state.forfettarioCassa, fs: state.forfettarioStartup,
       fr: state.forfettarioContributionRelief, oc: state.ordinarioCassa, or: state.ordinarioContributionRelief,
-      sd: state.srlDistribuzione, sc: state.srlCostiFissi, sl: state.srlSocioLavoratore,
-      ss: state.srlSocioCassa, sr: state.srlContributionRelief, vf: state.showForfettario,
-      vo: state.showOrdinario, vs: state.showSrl, vd: state.showDipendente, co: state.cardOrder,
+      vf: state.showForfettario, vo: state.showOrdinario, vd: state.showDipendente, co: state.cardOrder,
     }
     url.searchParams.set('data', btoa(JSON.stringify(compactState)))
     return url.toString()
@@ -810,16 +640,8 @@ export const useTaxStore = defineStore('taxStore', () => {
     ordinarioCassa,
     ordinarioContributionRelief,
     ordinarioRiduzione50,
-    srlDistribuzione,
-    srlCostiFissi,
-    srlSocioLavoratore,
-    srlSocioCassa,
-    srlContributionRelief,
-    srlCassa,
-    srlRiduzione50,
     forfettarioResult,
     ordinarioResult,
-    srlResult,
     dipendenteResult,
     forfettarioStatus,
     validationIssues,
@@ -836,7 +658,6 @@ export const useTaxStore = defineStore('taxStore', () => {
     businessEnrollment,
     showForfettario,
     showOrdinario,
-    showSrl,
     showDipendente,
     cardOrder,
     buildShareUrl,

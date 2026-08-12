@@ -7,7 +7,6 @@ import CalculationBreakdown from './components/CalculationBreakdown.vue'
 import ThemeToggle from './components/ThemeToggle.vue'
 import CardForfettario from './components/CardForfettario.vue'
 import CardOrdinario from './components/CardOrdinario.vue'
-import CardSrl from './components/CardSrl.vue'
 import CardDipendente from './components/CardDipendente.vue'
 import InfoTooltip from './components/InfoTooltip.vue'
 import draggable from 'vuedraggable'
@@ -23,15 +22,14 @@ const formatCurrency = (val: number) => {
 }
 
 const activeRegimesCount = computed(() => {
-  return [store.showForfettario, store.showOrdinario, store.showSrl, store.showDipendente].filter(Boolean).length
+  return [store.showForfettario, store.showOrdinario, store.showDipendente].filter(Boolean).length
 })
 
 const gridColsClass = computed(() => {
   const count = activeRegimesCount.value
   if (count === 1) return 'grid-cols-1 max-w-2xl mx-auto print:grid-cols-1 print:max-w-none'
   if (count === 2) return 'grid-cols-1 md:grid-cols-2 max-w-5xl mx-auto print:grid-cols-2 print:max-w-none'
-  if (count === 3) return 'grid-cols-1 lg:grid-cols-3 max-w-7xl mx-auto print:grid-cols-2 print:max-w-none'
-  return 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4 print:grid-cols-2 print:max-w-none'
+  return 'grid-cols-1 lg:grid-cols-3 max-w-7xl mx-auto print:grid-cols-3 print:max-w-none'
 })
 
 const printPage = () => {
@@ -69,7 +67,6 @@ const visibleCards = computed<string[]>({
   get: () => store.cardOrder.filter(id => {
     if (id === 'forfettario') return store.showForfettario
     if (id === 'ordinario') return store.showOrdinario
-    if (id === 'srl') return store.showSrl
     if (id === 'dipendente') return store.showDipendente
     return false
   }),
@@ -77,7 +74,6 @@ const visibleCards = computed<string[]>({
     const hidden = store.cardOrder.filter(id => {
       if (id === 'forfettario') return !store.showForfettario
       if (id === 'ordinario') return !store.showOrdinario
-      if (id === 'srl') return !store.showSrl
       if (id === 'dipendente') return !store.showDipendente
       return true
     })
@@ -85,7 +81,7 @@ const visibleCards = computed<string[]>({
   }
 })
 
-const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente') => {
+const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
   if (regime === 'forfettario') {
     breakdownTitle.value = 'Regime Forfettario'
     breakdownSteps.value = store.forfettarioResult.breakdown.steps
@@ -94,10 +90,6 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
     breakdownTitle.value = 'Regime Ordinario'
     breakdownSteps.value = store.ordinarioResult.breakdown.steps
     breakdownFinalNetto.value = store.ordinarioResult.netto
-  } else if (regime === 'srl') {
-    breakdownTitle.value = 'Società S.R.L.'
-    breakdownSteps.value = store.srlResult.breakdown.steps
-    breakdownFinalNetto.value = store.srlResult.netto
   } else if (regime === 'dipendente') {
     breakdownTitle.value = 'Lavoro Dipendente'
     breakdownSteps.value = store.dipendenteResult.breakdown.steps
@@ -471,12 +463,6 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
                 <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Ordinario</span>
               </div>
               <div class="flex items-center space-x-3">
-                <Switch v-model="store.showSrl" :class="store.showSrl ? 'bg-[#e2af0d]' : 'bg-gray-200 dark:bg-gray-600'" class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#e2af0d]">
-                  <span :class="store.showSrl ? 'translate-x-5' : 'translate-x-1'" class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform"/>
-                </Switch>
-                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">S.R.L.</span>
-              </div>
-              <div class="flex items-center space-x-3">
                 <Switch v-model="store.showDipendente" :class="store.showDipendente ? 'bg-[#e2af0d]' : 'bg-gray-200 dark:bg-gray-600'" class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#e2af0d]">
                   <span :class="store.showDipendente ? 'translate-x-5' : 'translate-x-1'" class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform"/>
                 </Switch>
@@ -511,7 +497,6 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'srl' | 'dipendente
           <div class="h-full">
             <CardForfettario v-if="element === 'forfettario'" @open-breakdown="openBreakdown" />
             <CardOrdinario v-else-if="element === 'ordinario'" @open-breakdown="openBreakdown" />
-            <CardSrl v-else-if="element === 'srl'" @open-breakdown="openBreakdown" />
             <CardDipendente v-else-if="element === 'dipendente'" @open-breakdown="openBreakdown" />
           </div>
         </template>

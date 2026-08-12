@@ -35,10 +35,9 @@ describe('ComparisonChart Component', () => {
   it('renders active regimes based on store visibility', async () => {
     const store = useTaxStore()
     
-    // Default: all 4 are visible
+    // Default: all 3 are visible
     store.showForfettario = true
     store.showOrdinario = true
-    store.showSrl = true
     store.showDipendente = true
     
     const wrapper = mount(ComparisonChart)
@@ -46,19 +45,16 @@ describe('ComparisonChart Component', () => {
     // Check that we see the titles of the regimes
     expect(wrapper.text()).toContain('Regime Forfettario')
     expect(wrapper.text()).toContain('Regime Ordinario')
-    expect(wrapper.text()).toContain('Società (S.R.L.)')
     expect(wrapper.text()).toContain('Lavoro Dipendente')
 
     // Disable all except Forfettario
     store.showOrdinario = false
-    store.showSrl = false
     store.showDipendente = false
     
     await wrapper.vm.$nextTick()
     
     expect(wrapper.text()).toContain('Regime Forfettario')
     expect(wrapper.text()).not.toContain('Regime Ordinario')
-    expect(wrapper.text()).not.toContain('Società (S.R.L.)')
     expect(wrapper.text()).not.toContain('Lavoro Dipendente')
   })
 
@@ -66,7 +62,6 @@ describe('ComparisonChart Component', () => {
     const store = useTaxStore()
     store.showForfettario = false
     store.showOrdinario = false
-    store.showSrl = false
     store.showDipendente = false
 
     const wrapper = mount(ComparisonChart)

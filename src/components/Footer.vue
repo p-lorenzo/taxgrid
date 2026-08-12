@@ -108,7 +108,7 @@ const normativeSources = Object.values(RULE_METADATA)
       <div class="pt-8 border-t border-gray-200 dark:border-gray-800 text-center">
         <p class="text-xs text-gray-400 dark:text-gray-500 max-w-4xl mx-auto leading-relaxed">
           <span class="font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-[9px] block mb-1">Disclaimer Legale</span>
-          TaxGrid è un simulatore orientativo non ufficiale riferito all'anno fiscale 2026. Il forfettario usa regole normative parametrizzate; ordinario, dipendente, addizionali e SRL includono assunzioni e semplificazioni evidenziate nell'interfaccia. I risultati rappresentano il carico economico annuo, non il calendario di saldo e acconti, e non costituiscono consulenza fiscale, legale o finanziaria. Per decisioni o adempimenti rivolgiti a un professionista abilitato.
+          TaxGrid è un simulatore orientativo non ufficiale riferito all'anno fiscale 2026. Il forfettario usa regole normative parametrizzate; ordinario e dipendente includono assunzioni e semplificazioni evidenziate nell'interfaccia. I risultati rappresentano il carico economico annuo, non il calendario di saldo e acconti, e non costituiscono consulenza fiscale, legale o finanziaria. Per decisioni o adempimenti rivolgiti a un professionista abilitato.
         </p>
         <div class="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-[10px] text-gray-500 dark:text-gray-400">
           <span>Aggiornato il {{ normativeSources[0].updatedAt.split('-').reverse().join('/') }}</span>
