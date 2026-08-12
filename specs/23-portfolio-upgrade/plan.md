@@ -1,6 +1,6 @@
 # Implementation Plan: Portfolio Upgrade (SRL removal + Scadenze fiscali + Glassmorphism)
 
-**Branch**: `23-portfolio-upgrade` | **Date**: 2026-08-13 | **Status**: IN PROGRESS (Fase 1 completata)
+**Branch**: `23-portfolio-upgrade` | **Date**: 2026-08-13 | **Status**: COMPLETE
 
 ## Obiettivo
 
@@ -77,7 +77,11 @@ Eliminare ogni riferimento SRL da UI, store, grafico, stampa.
 
 ## Fase 3 — Redesign Glassmorphism
 
-### Palette (invariata)
+### Stato: COMPLETA (2026-08-13)
+- `src/style.css`: nuove utility custom `tg-bg` (sfondo ambientale con gradienti radiali blu+oro fissi, light/dark), `tg-glass`, `tg-glass-header`, `tg-glass-soft`, `tg-input` (backdrop-blur + vetro), con override print che ripristinano il tema chiaro su stampa.
+- Applicato a: root App (`tg-bg`), pannello Parametri Globali, tutti gli input/select (15), sezioni parametri avanzati, 3 card regime (header gradiente + corpo vetro), ComparisonChart, TaxDeadlines, Footer, modal CalculationBreakdown, pill anno fiscale.
+- Palette invariata: blu primario + oro `#e2af0d`.
+- Build OK, 66 test verdi. Commit `6726784` pushato.
 - Blu: `blue-600/700` (primario), oro `#e2af0d` (accent), sfondi `gray-50` light / `gray-900` dark.
 
 ### Direzione visiva
