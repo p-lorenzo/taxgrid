@@ -517,7 +517,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
     <KoFiSupport />
 
     <p class="max-w-5xl mx-auto mt-8 text-center text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-      I risultati rappresentano il carico fiscale economico annuo stimato, non il calendario di cassa di saldi e acconti.
+      I risultati rappresentano il carico fiscale economico annuo stimato. Il calendario di saldi e acconti sopra è una stima orientativa delle scadenze di cassa, basata su regole 2026 semplificate: verifica sempre con un professionista.
     </p>
 
     <Footer />
