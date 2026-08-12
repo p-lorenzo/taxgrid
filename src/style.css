@@ -27,6 +27,32 @@ body {
    Glassmorphism upgrade (Fase 3) — palette invariata (blu + oro)
    ============================================================ */
 
+/* Pattern geometrico ripetuto (griglia di punti + linee sottili) */
+.tg-pattern {
+  --dot: rgba(37, 99, 235, 0.10);
+  --line: rgba(100, 116, 139, 0.06);
+  background-image:
+    radial-gradient(var(--dot) 1px, transparent 1.4px),
+    radial-gradient(var(--dot) 1px, transparent 1.4px),
+    linear-gradient(45deg, var(--line) 1px, transparent 1px),
+    linear-gradient(-45deg, var(--line) 1px, transparent 1px);
+  background-size:
+    26px 26px,
+    26px 26px,
+    52px 52px,
+    52px 52px;
+  background-position:
+    0 0,
+    13px 13px,
+    0 0,
+    0 0;
+}
+
+.dark .tg-pattern {
+  --dot: rgba(96, 165, 250, 0.12);
+  --line: rgba(148, 163, 184, 0.05);
+}
+
 /* Sfondo ambientale: gradienti radiali blu + oro, fissi al viewport */
 .tg-bg {
   background-color: #f8fafc;
@@ -46,19 +72,93 @@ body {
   background-attachment: fixed;
 }
 
-/* Card / pannello vetro */
+/* Layer animato WebGL (distorsione liquida) — posizionato sopra .tg-bg e sotto
+   i pannelli; grana e blur dei pannelli lo rendono visibile ai bordi. */
+.tg-shader-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tg-shader-canvas {
+    display: none;
+  }
+}
+
+/* Card / pannello vetro — vetro più ricco: blur+saturazione, bordo gradiente
+   animato stile liquid metal, riflesso interno e grana sottile. */
+@keyframes tg-border-rotate {
+  to { --angle: 360deg; }
+}
+
+@property --angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
 .tg-glass {
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  border: 1px solid rgba(255, 255, 255, 0.65);
-  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  position: relative;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.45));
+  backdrop-filter: blur(22px) saturate(1.5);
+  -webkit-backdrop-filter: blur(22px) saturate(1.5);
+  border: 1px solid transparent;
+  background-clip: padding-box;
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  border-radius: 1rem;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Bordo conico animato (liquid metal) posizionato dietro il padding-box */
+.tg-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--angle),
+    rgba(37, 99, 235, 0.55),
+    rgba(226, 175, 13, 0.5),
+    rgba(59, 130, 246, 0.35),
+    rgba(226, 175, 13, 0.55),
+    rgba(37, 99, 235, 0.55)
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: tg-border-rotate 8s linear infinite;
+  z-index: 0;
+}
+
+/* Grana del vetro (noise) per spezzare i gradienti netti */
+.tg-glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  z-index: 0;
+}
+
+.tg-glass > * {
+  position: relative;
+  z-index: 1;
 }
 
 .dark .tg-glass {
-  background: rgba(17, 24, 39, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  background: linear-gradient(135deg, rgba(17, 24, 39, 0.66), rgba(17, 24, 39, 0.5));
+  border: 1px solid transparent;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 /* Header card vetro con gradiente per regime */
@@ -107,6 +207,13 @@ body {
     print-color-adjust: exact !important;
   }
   
+  .tg-shader-canvas {
+    display: none !important;
+  }
+
+  .tg-pattern {
+    background-image: none !important;
+  }
   /* Force light theme on print */
   :root {
     --text: #1f2937 !important;
