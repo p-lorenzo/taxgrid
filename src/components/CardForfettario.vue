@@ -15,9 +15,9 @@ defineEmits<{
 </script>
 
 <template>
-  <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col transition-transform hover:-translate-y-1 hover:shadow-lg duration-300 print:break-inside-avoid h-full">
+  <div class="tg-glass rounded-2xl overflow-hidden flex flex-col transition-transform hover:-translate-y-1.5 hover:shadow-xl duration-300 print:break-inside-avoid h-full">
     <!-- Header -->
-    <div class="bg-blue-50 dark:bg-blue-950/30 px-6 py-4 border-b border-blue-100 dark:border-blue-900/30 flex items-center justify-between">
+    <div class="tg-glass-header px-6 py-4 flex items-center justify-between">
       <div class="flex items-center">
         <!-- Drag Handle Icon -->
         <div class="drag-handle cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors mr-2.5 print:hidden">
@@ -68,7 +68,7 @@ defineEmits<{
             Cassa Previdenziale
             <InfoTooltip text="Gestione Separata: contributi calcolati in percentuale senza minimale fisso. Artigiani/Commercianti: contributi fissi minimi + quota percentuale." />
           </label>
-          <select v-model="store.forfettarioCassa" class="block w-full py-2 px-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg shadow-sm focus:ring-[#e2af0d] focus:border-[#e2af0d] sm:text-sm print:hidden">
+          <select v-model="store.forfettarioCassa" class="tg-input block w-full py-2 px-3 border rounded-lg shadow-sm focus:ring-[#e2af0d] focus:border-[#e2af0d] sm:text-sm print:hidden">
             <option value="gestione_separata">Gestione Separata (Professionisti)</option>
             <option value="artigiani">Artigiani</option>
             <option value="commercianti">Commercianti</option>
@@ -83,7 +83,7 @@ defineEmits<{
             Agevolazione contributiva 2026
             <InfoTooltip text="Seleziona solo l’agevolazione per cui possiedi i requisiti. Le opzioni sono mutuamente esclusive." />
           </label>
-          <select v-model="store.forfettarioContributionRelief" class="block w-full py-2 px-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg text-sm print:hidden">
+          <select v-model="store.forfettarioContributionRelief" class="tg-input block w-full py-2 px-3 border rounded-lg text-sm print:hidden">
             <option value="none">Nessuna</option>
             <option value="forfettario_35">Regime previdenziale forfettario −35%</option>
             <option value="pensioner_50">Pensionato INPS over 65 −50%</option>

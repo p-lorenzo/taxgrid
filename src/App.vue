@@ -101,7 +101,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 p-4 sm:p-8 font-sans selection:bg-blue-600 selection:text-white">
+  <div class="min-h-screen tg-bg text-gray-900 dark:text-gray-100 p-4 sm:p-8 font-sans selection:bg-blue-600 selection:text-white">
     <!-- Interactive UI (hidden on print) -->
     <div class="print:hidden">
       <div class="max-w-7xl mx-auto">
@@ -115,7 +115,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
           <p class="text-lg text-gray-600 dark:text-gray-400 max-w-2xl">
             Simula e compara in tempo reale i regimi fiscali italiani per scoprire il tuo vero netto in tasca.
           </p>
-          <span class="inline-flex mt-3 items-center rounded-full bg-blue-100 dark:bg-blue-950/50 px-3 py-1 text-xs font-bold text-blue-700 dark:text-blue-300">
+          <span class="inline-flex mt-3 items-center rounded-full tg-glass-soft px-3 py-1 text-xs font-bold text-blue-700 dark:text-blue-300">
             Anno fiscale {{ store.fiscalYear }}
           </span>
         </div>
@@ -123,7 +123,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
       </header>
 
       <!-- Global Controls -->
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 mb-8 transition-shadow hover:shadow-md">
+      <div class="tg-glass rounded-2xl p-6 mb-8 transition-shadow hover:shadow-lg">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <h2 class="text-xl font-semibold flex items-center">
             <span class="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 p-2 rounded-lg mr-3">
@@ -169,7 +169,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
             </div>
             <div class="relative print:hidden">
               <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">€</span>
-              <input type="number" v-model="store.fatturato" class="block w-full pl-8 pr-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
+              <input type="number" v-model="store.fatturato" class="tg-input block w-full pl-8 pr-3 py-2.5 border rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
             </div>
             <div class="hidden print:block text-lg font-bold text-gray-900 bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-xl border border-gray-200 min-h-[42px] flex items-center">
               {{ formatCurrency(store.fatturato) }}
@@ -182,7 +182,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
             <div v-if="!store.advancedMode">
               <div class="relative print:hidden">
                 <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">€</span>
-                <input type="number" v-model="store.costiOperativiReali" class="block w-full pl-8 pr-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
+                <input type="number" v-model="store.costiOperativiReali" class="tg-input block w-full pl-8 pr-3 py-2.5 border rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
               </div>
               <div class="hidden print:block text-lg font-bold text-gray-900 bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-xl border border-gray-200 min-h-[42px] flex items-center">
                 {{ formatCurrency(store.costiOperativiReali) }}
@@ -192,7 +192,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
 
             <!-- Advanced Mode Placeholder -->
             <div v-else>
-              <div class="bg-gray-50 dark:bg-gray-700/50 border border-dashed border-gray-200 dark:border-gray-600 rounded-xl py-2 px-3 text-sm text-gray-500 dark:text-gray-400 flex items-center h-[42px] print:hidden">
+              <div class="tg-glass-soft border border-dashed border-gray-200 dark:border-gray-600 rounded-xl py-2 px-3 text-sm text-gray-500 dark:text-gray-400 flex items-center h-[42px] print:hidden">
                 <svg class="w-4 h-4 mr-2 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
                 <span class="truncate">Suddivise nei parametri avanzati</span>
               </div>
@@ -207,13 +207,13 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
               Categoria ATECO (Coefficiente)
               <InfoTooltip text="La percentuale (stabilita per codice ATECO) su cui si calcolano imposte e contributi nel regime Forfettario. Le spese reali non vengono detratte." />
             </label>
-            <select v-model="store.atecoCategory" class="print:hidden block w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors">
+            <select v-model="store.atecoCategory" class="tg-input print:hidden block w-full px-3 py-2.5 border rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors">
               <option v-for="cat in store.ATECO_CATEGORIES" :key="cat.id" :value="cat.id">
                 {{ cat.name }}
               </option>
             </select>
             <div v-if="store.atecoCategory === 'custom'" class="relative mt-2 print:hidden">
-              <input type="number" min="0" max="100" step="1" :value="store.atecoCoef * 100" @input="store.atecoCoef = Number(($event.target as HTMLInputElement).value) / 100" class="block w-full pr-8 pl-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm" />
+              <input type="number" min="0" max="100" step="1" :value="store.atecoCoef * 100" @input="store.atecoCoef = Number(($event.target as HTMLInputElement).value) / 100" class="tg-input block w-full pr-8 pl-3 py-2 border rounded-xl text-sm" />
               <span class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 text-xs">%</span>
             </div>
             <div class="hidden print:block text-xs font-semibold text-gray-900 bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-xl border border-gray-200 min-h-[42px] flex items-center leading-tight">
@@ -275,7 +275,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
         <div v-if="store.advancedMode">
           <div class="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <!-- Section 1: Spese Suddivise -->
-          <div class="bg-gray-50 dark:bg-gray-800/40 p-4 rounded-xl border border-gray-100 dark:border-gray-700/50">
+          <div class="tg-glass-soft p-4 rounded-xl">
             <h4 class="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3 flex items-center">
               <span class="mr-1.5 text-blue-500">●</span> Spese Suddivise
             </h4>
@@ -284,7 +284,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
                 <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Costi operativi reali</label>
                 <div class="relative print:hidden">
                   <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-gray-400 text-xs">€</span>
-                  <input type="number" v-model="store.costiOperativiReali" class="block w-full pl-7 pr-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
+                  <input type="number" v-model="store.costiOperativiReali" class="tg-input block w-full pl-7 pr-2.5 py-1.5 text-sm border rounded-lg text-gray-900 dark:text-white focus:ring-1 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
                 </div>
                 <div class="hidden print:block text-sm font-bold text-gray-900 bg-white dark:bg-gray-850 px-2.5 py-1.5 rounded-lg border border-gray-200 min-h-[34px] flex items-center">
                   {{ formatCurrency(store.costiOperativiReali) }}
@@ -295,7 +295,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
                 <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Costi fiscalmente deducibili</label>
                 <div class="relative print:hidden">
                   <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-gray-400 text-xs">€</span>
-                  <input type="number" v-model="store.costiFiscalmenteDeducibili" class="block w-full pl-7 pr-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
+                  <input type="number" v-model="store.costiFiscalmenteDeducibili" class="tg-input block w-full pl-7 pr-2.5 py-1.5 text-sm border rounded-lg text-gray-900 dark:text-white focus:ring-1 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
                 </div>
                 <p class="text-[10px] text-gray-400 mt-1 print:hidden">Riducono l’imponibile del regime ordinario</p>
               </div>
@@ -306,7 +306,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
                 </label>
                 <div class="relative print:hidden">
                   <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-gray-400 text-xs">€</span>
-                  <input type="number" v-model="store.speseDetraibili" class="block w-full pl-7 pr-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
+                  <input type="number" v-model="store.speseDetraibili" class="tg-input block w-full pl-7 pr-2.5 py-1.5 text-sm border rounded-lg text-gray-900 dark:text-white focus:ring-1 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
                 </div>
                 <div class="hidden print:block text-sm font-bold text-gray-900 bg-white dark:bg-gray-850 px-2.5 py-1.5 rounded-lg border border-gray-200 min-h-[34px] flex items-center">
                   {{ formatCurrency(store.speseDetraibili) }}
@@ -316,7 +316,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
           </div>
 
           <!-- Section 2: Lavoro Dipendente Concomitante -->
-          <div class="bg-gray-50 dark:bg-gray-800/40 p-4 rounded-xl border border-gray-100 dark:border-gray-700/50">
+          <div class="tg-glass-soft p-4 rounded-xl">
             <h4 class="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3 flex items-center">
               <span class="mr-1.5 text-[#e2af0d]">●</span> Lavoro Dipendente
             </h4>
@@ -347,7 +347,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
                   </label>
                   <div class="relative print:hidden">
                     <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-gray-400 text-xs">€</span>
-                    <input type="number" v-model="store.ralDipendente" class="block w-full pl-7 pr-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
+                    <input type="number" v-model="store.ralDipendente" class="tg-input block w-full pl-7 pr-2.5 py-1.5 text-sm border rounded-lg text-gray-900 dark:text-white focus:ring-1 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
                   </div>
                   <div class="hidden print:block text-sm font-bold text-gray-900 bg-white dark:bg-gray-850 px-2.5 py-1.5 rounded-lg border border-gray-200 min-h-[34px] flex items-center">
                     {{ formatCurrency(store.ralDipendente) }}
@@ -361,7 +361,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
                   </label>
                   <div class="relative print:hidden">
                     <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-gray-400 text-xs">€</span>
-                    <input type="number" v-model="store.redditoDipendentePrecedente" class="block w-full pl-7 pr-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700" />
+                    <input type="number" v-model="store.redditoDipendentePrecedente" class="tg-input block w-full pl-7 pr-2.5 py-1.5 text-sm border rounded-lg" />
                   </div>
                 </div>
               </div>
@@ -369,7 +369,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
           </div>
 
           <!-- Section 3: Tasse Locali -->
-          <div class="bg-gray-50 dark:bg-gray-800/40 p-4 rounded-xl border border-gray-100 dark:border-gray-700/50">
+          <div class="tg-glass-soft p-4 rounded-xl">
             <h4 class="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3 flex items-center">
               <span class="mr-1.5 text-red-500">●</span> Tasse Locali (Addizionali)
             </h4>
@@ -380,7 +380,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
                   <InfoTooltip text="Aliquota media/effettiva semplificata. Non modella scaglioni, esenzioni e regole specifiche della regione." />
                 </label>
                 <div class="relative print:hidden">
-                  <input type="number" step="0.01" v-model="store.addizionaleRegionale" class="block w-full pr-7 pl-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
+                  <input type="number" step="0.01" v-model="store.addizionaleRegionale" class="tg-input block w-full pr-7 pl-2.5 py-1.5 text-sm border rounded-lg text-gray-900 dark:text-white focus:ring-1 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
                   <span class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-400 text-xs">%</span>
                 </div>
                 <div class="hidden print:block text-sm font-bold text-gray-900 bg-white dark:bg-gray-850 px-2.5 py-1.5 rounded-lg border border-gray-200 min-h-[34px] flex items-center">
@@ -393,7 +393,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
                   <InfoTooltip text="Aliquota media/effettiva semplificata. Non modella soglie, acconto e regole specifiche del comune." />
                 </label>
                 <div class="relative print:hidden">
-                  <input type="number" step="0.01" v-model="store.addizionaleComunale" class="block w-full pr-7 pl-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
+                  <input type="number" step="0.01" v-model="store.addizionaleComunale" class="tg-input block w-full pr-7 pl-2.5 py-1.5 text-sm border rounded-lg text-gray-900 dark:text-white focus:ring-1 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
                   <span class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-400 text-xs">%</span>
                 </div>
                 <div class="hidden print:block text-sm font-bold text-gray-900 bg-white dark:bg-gray-850 px-2.5 py-1.5 rounded-lg border border-gray-200 min-h-[34px] flex items-center">
@@ -404,7 +404,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
           </div>
 
           <!-- Section 4: Massimale INPS -->
-          <div class="bg-gray-50 dark:bg-gray-800/40 p-4 rounded-xl border border-gray-100 dark:border-gray-700/50">
+          <div class="tg-glass-soft p-4 rounded-xl">
             <h4 class="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3 flex items-center">
               <span class="mr-1.5 text-green-500">●</span> Limiti Previdenziali
             </h4>
@@ -416,7 +416,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
                 </label>
                 <div class="relative print:hidden">
                   <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-gray-400 text-xs">€</span>
-                  <input type="number" v-model="store.massimaleInps" class="block w-full pl-7 pr-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
+                  <input type="number" v-model="store.massimaleInps" class="tg-input block w-full pl-7 pr-2.5 py-1.5 text-sm border rounded-lg text-gray-900 dark:text-white focus:ring-1 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors" />
                 </div>
                 <div class="hidden print:block text-sm font-bold text-gray-900 bg-white dark:bg-gray-850 px-2.5 py-1.5 rounded-lg border border-gray-200 min-h-[34px] flex items-center">
                   {{ formatCurrency(store.massimaleInps) }}
@@ -427,7 +427,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
                   Iscrizione Artigiani/Commercianti
                   <InfoTooltip text="L’obbligo non viene dedotto automaticamente dal contratto full-time: dipende da attività, abitualità e prevalenza." />
                 </label>
-                <select v-model="store.businessEnrollment" class="block w-full py-1.5 px-2.5 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg print:hidden">
+                <select v-model="store.businessEnrollment" class="tg-input block w-full py-1.5 px-2.5 text-sm border rounded-lg print:hidden">
                   <option value="unknown">Da verificare</option>
                   <option value="required">Iscrizione dovuta</option>
                   <option value="not_required">Iscrizione non dovuta</option>
@@ -435,11 +435,11 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
               </div>
               <div>
                 <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">INPS dipendente stimata</label>
-                <div class="relative"><input type="number" step="0.01" v-model="store.aliquotaInpsDipendente" class="block w-full pr-7 pl-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700" /><span class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-400 text-xs">%</span></div>
+                <div class="relative"><input type="number" step="0.01" v-model="store.aliquotaInpsDipendente" class="tg-input block w-full pr-7 pl-2.5 py-1.5 text-sm border rounded-lg" /><span class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-400 text-xs">%</span></div>
               </div>
               <div>
                 <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Contributi datore stimati</label>
-                <div class="relative"><input type="number" step="0.01" v-model="store.aliquotaContributivaDatore" class="block w-full pr-7 pl-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700" /><span class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-400 text-xs">%</span></div>
+                <div class="relative"><input type="number" step="0.01" v-model="store.aliquotaContributivaDatore" class="tg-input block w-full pr-7 pl-2.5 py-1.5 text-sm border rounded-lg" /><span class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-400 text-xs">%</span></div>
               </div>
             </div>
           </div>

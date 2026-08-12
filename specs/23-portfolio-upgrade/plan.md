@@ -42,8 +42,12 @@ Eliminare ogni riferimento SRL da UI, store, grafico, stampa.
 
 ## Fase 2 — Simulatore Scadenze Fiscali 2026
 
-### Nuovo modulo: `src/tax-engine/deadlines.ts`
-Modello dettagliato (regole italiane 2026):
+### Stato: COMPLETA (2026-08-13)
+- Nuovo `src/tax-engine/deadlines.ts` (`buildDeadlines`): saldo 2025 + 1°/2° acconto (metodi storico/previsionale), saldo 2026 a conguaglio, INPS Gestione Separata 2 rate 50/50 (30/06 e 30/11), Artigiani/Commercianti 40/30/30 (acconto 18/05 per weekend 16/05), addizionali regionali/comunali (acconto 30% 30/11, saldo 70% 30/06/2027). Esportato da `tax-engine/index.ts`.
+- Nuovo `src/components/TaxDeadlines.vue`: timeline verticale con dot colorati per tipo (saldo/acconto/contributi/addizionali), selettore regime forfettario/ordinario, metodo acconto + override imposta prevista, totale versamenti, nota legale.
+- Store: ref `deadlineRegime`, `accontoMethod`, `expectedTax` + computed `deadlines`; persistiti in localStorage e share URL (v2→v3, backward compat).
+- Integrato in App.vue sotto il grafico.
+- Test: 7 engine + 3 store + 3 componente = 13 nuovi, 66 totali verdi. Commit `f9b7d0d` pushato.
 
 - **IRPEF/imposta sostitutiva** (forfettario 15%/5%, ordinario IRPEF):
   - **Saldo** anno precedente (2025): entro 30/06/2026 (con 0,4% maggiorazione se a rate da luglio).

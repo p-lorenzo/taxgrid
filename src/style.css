@@ -23,6 +23,83 @@ body {
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
+/* ============================================================
+   Glassmorphism upgrade (Fase 3) — palette invariata (blu + oro)
+   ============================================================ */
+
+/* Sfondo ambientale: gradienti radiali blu + oro, fissi al viewport */
+.tg-bg {
+  background-color: #f8fafc;
+  background-image:
+    radial-gradient(ellipse 55% 45% at 12% -5%, rgba(37, 99, 235, 0.14), transparent 60%),
+    radial-gradient(ellipse 45% 40% at 92% 12%, rgba(226, 175, 13, 0.12), transparent 55%),
+    radial-gradient(ellipse 60% 50% at 50% 110%, rgba(37, 99, 235, 0.10), transparent 65%);
+  background-attachment: fixed;
+}
+
+.dark .tg-bg {
+  background-color: #0b1120;
+  background-image:
+    radial-gradient(ellipse 55% 45% at 12% -5%, rgba(59, 130, 246, 0.18), transparent 60%),
+    radial-gradient(ellipse 45% 40% at 92% 12%, rgba(226, 175, 13, 0.14), transparent 55%),
+    radial-gradient(ellipse 60% 50% at 50% 110%, rgba(59, 130, 246, 0.12), transparent 65%);
+  background-attachment: fixed;
+}
+
+/* Card / pannello vetro */
+.tg-glass {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.dark .tg-glass {
+  background: rgba(17, 24, 39, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Header card vetro con gradiente per regime */
+.tg-glass-header {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.10), rgba(226, 175, 13, 0.06));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.dark .tg-glass-header {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.14), rgba(226, 175, 13, 0.08));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Input / select vetro */
+.tg-input {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.dark .tg-input {
+  background: rgba(55, 65, 81, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+/* Pannello secondario vetro (sotto-card, box parametri) */
+.tg-glass-soft {
+  background: rgba(249, 250, 251, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.dark .tg-glass-soft {
+  background: rgba(17, 24, 39, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
 @media print {
   /* Force color adjust */
   * {
@@ -41,6 +118,23 @@ body {
   body {
     background: #ffffff !important;
     color: #1f2937 !important;
+  }
+
+  .tg-bg {
+    background-image: none !important;
+    background-color: #ffffff !important;
+  }
+
+  .tg-glass,
+  .tg-glass-soft,
+  .tg-glass-header,
+  .dark\:tg-glass,
+  .dark\:tg-glass-soft {
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border-color: #e5e7eb !important;
+    box-shadow: none !important;
   }
 
   /* Override dark classes on print */

@@ -85,7 +85,7 @@ const chartData = computed(() => {
 </script>
 
 <template>
-  <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 mb-8 transition-shadow hover:shadow-md">
+  <div class="tg-glass rounded-2xl p-6 mb-8 transition-shadow hover:shadow-lg">
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
       <div>
         <h2 class="text-xl font-semibold flex items-center">

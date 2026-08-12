@@ -53,7 +53,7 @@ const getOperatorColorClass = (op?: string) => {
             leave-from="opacity-100 scale-100"
             leave-to="opacity-0 scale-95"
           >
-            <DialogPanel class="w-full max-w-2xl transform overflow-hidden rounded-2xl bg-white dark:bg-gray-800 p-6 text-left align-middle shadow-xl transition-all border border-gray-100 dark:border-gray-700">
+            <DialogPanel class="w-full max-w-2xl transform overflow-hidden rounded-2xl tg-glass p-6 text-left align-middle shadow-xl transition-all">
               
               <!-- Header -->
               <div class="flex items-start justify-between border-b border-gray-150 dark:border-gray-705 pb-4 mb-4">

@@ -14,9 +14,9 @@ defineEmits<{
 </script>
 
 <template>
-  <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col transition-transform hover:-translate-y-1 hover:shadow-lg duration-300 print:break-inside-avoid h-full">
+  <div class="tg-glass rounded-2xl overflow-hidden flex flex-col transition-transform hover:-translate-y-1.5 hover:shadow-xl duration-300 print:break-inside-avoid h-full">
     <!-- Header -->
-    <div class="bg-blue-50 dark:bg-blue-950/30 px-6 py-4 border-b border-blue-100 dark:border-blue-900/30 flex items-center justify-between">
+    <div class="tg-glass-header px-6 py-4 flex items-center justify-between">
       <div class="flex items-center">
         <!-- Drag Handle Icon -->
         <div class="drag-handle cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors mr-2.5 print:hidden">
@@ -33,7 +33,7 @@ defineEmits<{
     
     <div class="p-6 flex-grow flex flex-col">
       <div class="mb-6 space-y-4">
-        <div class="p-3 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-400">
+        <div class="p-3 tg-glass-soft rounded-xl text-sm text-gray-600 dark:text-gray-400">
           <p v-if="store.inputMode === 'ral'">
             La <strong>RAL inserita ({{ formatCurrency(store.fatturato) }})</strong> corrisponde al tuo lordo annuo.
             Per il confronto con gli altri regimi, viene calcolato un fatturato equivalente
