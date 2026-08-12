@@ -29,6 +29,8 @@ body {
 
 /* Sfondo ambientale: gradienti radiali blu + oro, fissi al viewport */
 .tg-bg {
+  position: relative;
+  isolation: isolate;
   background-color: #f8fafc;
   background-image:
     radial-gradient(ellipse 55% 45% at 12% -5%, rgba(37, 99, 235, 0.14), transparent 60%),
@@ -46,14 +48,18 @@ body {
   background-attachment: fixed;
 }
 
-/* Layer animato WebGL (distorsione liquida) — posizionato sopra .tg-bg e sotto
-   i pannelli; grana e blur dei pannelli lo rendono visibile ai bordi. */
+/* Layer WebGL sopra lo sfondo opaco e sotto tutto il contenuto. */
+.tg-bg > :not(.tg-shader-canvas) {
+  position: relative;
+  z-index: 1;
+}
+
 .tg-shader-canvas {
   position: fixed;
   inset: 0;
-  z-index: -1;
+  z-index: 0;
   pointer-events: none;
-  opacity: 0.85;
+  opacity: 0.55;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -76,7 +82,7 @@ body {
 
 .tg-glass {
   position: relative;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.45));
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0.68));
   backdrop-filter: blur(22px) saturate(1.5);
   -webkit-backdrop-filter: blur(22px) saturate(1.5);
   border: 1px solid transparent;
@@ -130,7 +136,7 @@ body {
 }
 
 .dark .tg-glass {
-  background: linear-gradient(135deg, rgba(17, 24, 39, 0.66), rgba(17, 24, 39, 0.5));
+  background: linear-gradient(135deg, rgba(17, 24, 39, 0.84), rgba(17, 24, 39, 0.72));
   border: 1px solid transparent;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }

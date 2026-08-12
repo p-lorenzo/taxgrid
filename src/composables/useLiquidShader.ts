@@ -55,7 +55,7 @@ export function useLiquidShader() {
     float fbm(vec2 p) {
       float v = 0.0;
       float amp = 0.5;
-      for (int i = 0; i < 5; i++) {
+      for (int i = 0; i < 4; i++) {
         v += amp * noise(p);
         p = p * 2.03 + vec2(11.0, 7.0);
         amp *= 0.5;
@@ -68,29 +68,35 @@ export function useLiquidShader() {
       vec2 p = uv * 2.0 - 1.0;
       p.x *= u_res.x / u_res.y;
 
-      // Domain warping: il campo di flusso "seta" si avvolge su se stesso
-      float t = u_time * 0.06;
-      vec2 q = vec2(
-        fbm(p * 1.4 + vec2(t, -t * 0.8)),
-        fbm(p * 1.4 + vec2(5.2, 1.3) + vec2(-t * 0.7, t))
-      );
-      vec2 r = vec2(
-        fbm(p * 1.4 + 2.2 * q + vec2(1.7, 9.2) + t * 0.35),
-        fbm(p * 1.4 + 2.2 * q + vec2(8.3, 2.8) - t * 0.3)
-      );
-      float f = fbm(p * 1.4 + 2.5 * r);
+      float t = u_time * 0.07;
 
-      vec3 col = mix(u_colorA, u_colorB, clamp(f * f * 1.6, 0.0, 1.0));
-      col = mix(col, u_colorC, clamp(dot(r, q) * 0.6, 0.0, 1.0));
+      // Ondulazione minima: struttura netta, movimento organico quasi impercettibile
+      float wob = fbm(p * 1.8 + vec2(t * 0.25, -t * 0.2)) - 0.5;
 
-      // Vignettatura dolce: sfuma verso il centro
-      float vig = smoothstep(1.5, 0.25, length(p));
-      col *= 0.62 + 0.38 * vig;
+      // Reticolo a rombi ampio: due famiglie di diagonali in controfase
+      float density = 7.0;
+      float d1 = (p.x + p.y) * density + t + wob * 0.14;
+      float d2 = (p.x - p.y) * density - t * 0.7 - wob * 0.14;
 
-      // Dithering per eliminare il banding dei gradienti morbidi
-      col += (hash(gl_FragCoord.xy) - 0.5) * (2.0 / 255.0);
+      float dist1 = min(fract(d1), 1.0 - fract(d1));
+      float dist2 = min(fract(d2), 1.0 - fract(d2));
+      float l1 = 1.0 - smoothstep(0.0, 0.028, dist1);
+      float l2 = 1.0 - smoothstep(0.0, 0.028, dist2);
 
-      gl_FragColor = vec4(col, 0.62);
+      // Modulazione spaziale: il reticolo emerge solo in aree morbide
+      float m = fbm(p * 1.1 + vec2(t * 0.2, t * 0.15));
+      float fade = 0.08 + 0.92 * smoothstep(0.38, 0.72, m);
+
+      // Intersezioni del reticolo: bagliore oro
+      float cross = l1 * l2;
+
+      vec3 col = u_colorA * l1 * 0.85 + u_colorC * l2 * 0.6 + u_colorB * cross;
+      float alpha = clamp(l1 * 0.45 + l2 * 0.28 + cross * 0.6, 0.0, 1.0) * fade;
+
+      // Pulsazione lenta globale
+      alpha *= 0.88 + 0.12 * sin(t * 0.5);
+
+      gl_FragColor = vec4(col, alpha * 0.16);
     }
   `
 
@@ -124,15 +130,15 @@ export function useLiquidShader() {
   const colorsFor = (isDark: boolean): [number[], number[], number[]] => {
     if (isDark) {
       return [
-        [0.10, 0.20, 0.45],   // blu profondo
-        [0.38, 0.29, 0.07],   // oro scuro
-        [0.14, 0.30, 0.62],   // blu medio
+        [0.38, 0.55, 1.00],   // blu luminoso
+        [0.95, 0.72, 0.10],   // oro
+        [0.30, 0.48, 0.85],   // blu medio
       ]
     }
     return [
       [0.28, 0.50, 0.96],   // blu
       [0.97, 0.75, 0.16],   // oro
-      [0.55, 0.70, 1.00],   // azzurro chiaro
+      [0.50, 0.66, 1.00],   // azzurro chiaro
     ]
   }
 
