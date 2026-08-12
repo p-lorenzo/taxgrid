@@ -27,32 +27,6 @@ body {
    Glassmorphism upgrade (Fase 3) — palette invariata (blu + oro)
    ============================================================ */
 
-/* Pattern geometrico ripetuto (griglia di punti + linee sottili) */
-.tg-pattern {
-  --dot: rgba(37, 99, 235, 0.10);
-  --line: rgba(100, 116, 139, 0.06);
-  background-image:
-    radial-gradient(var(--dot) 1px, transparent 1.4px),
-    radial-gradient(var(--dot) 1px, transparent 1.4px),
-    linear-gradient(45deg, var(--line) 1px, transparent 1px),
-    linear-gradient(-45deg, var(--line) 1px, transparent 1px);
-  background-size:
-    26px 26px,
-    26px 26px,
-    52px 52px,
-    52px 52px;
-  background-position:
-    0 0,
-    13px 13px,
-    0 0,
-    0 0;
-}
-
-.dark .tg-pattern {
-  --dot: rgba(96, 165, 250, 0.12);
-  --line: rgba(148, 163, 184, 0.05);
-}
-
 /* Sfondo ambientale: gradienti radiali blu + oro, fissi al viewport */
 .tg-bg {
   background-color: #f8fafc;
@@ -209,10 +183,6 @@ body {
   
   .tg-shader-canvas {
     display: none !important;
-  }
-
-  .tg-pattern {
-    background-image: none !important;
   }
   /* Force light theme on print */
   :root {

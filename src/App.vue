@@ -108,7 +108,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
 </script>
 
 <template>
-  <div class="min-h-screen tg-bg tg-pattern text-gray-900 dark:text-gray-100 p-4 sm:p-8 font-sans selection:bg-blue-600 selection:text-white">
+  <div class="min-h-screen tg-bg text-gray-900 dark:text-gray-100 p-4 sm:p-8 font-sans selection:bg-blue-600 selection:text-white">
     <!-- Layer WebGL liquido (distorsione ai bordi dei pannelli) -->
     <canvas ref="shaderCanvas" class="tg-shader-canvas print:hidden" aria-hidden="true" />
     <!-- Interactive UI (hidden on print) -->

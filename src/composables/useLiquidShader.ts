@@ -55,7 +55,7 @@ export function useLiquidShader() {
     float fbm(vec2 p) {
       float v = 0.0;
       float amp = 0.5;
-      for (int i = 0; i < 4; i++) {
+      for (int i = 0; i < 5; i++) {
         v += amp * noise(p);
         p = p * 2.03 + vec2(11.0, 7.0);
         amp *= 0.5;
@@ -68,17 +68,29 @@ export function useLiquidShader() {
       vec2 p = uv * 2.0 - 1.0;
       p.x *= u_res.x / u_res.y;
 
-      float t = u_time * 0.12;
-      float n = fbm(p * 1.6 + vec2(t, t * 0.7));
-      float n2 = fbm(p * 2.4 - vec2(t * 0.9, t * 0.6));
+      // Domain warping: il campo di flusso "seta" si avvolge su se stesso
+      float t = u_time * 0.06;
+      vec2 q = vec2(
+        fbm(p * 1.4 + vec2(t, -t * 0.8)),
+        fbm(p * 1.4 + vec2(5.2, 1.3) + vec2(-t * 0.7, t))
+      );
+      vec2 r = vec2(
+        fbm(p * 1.4 + 2.2 * q + vec2(1.7, 9.2) + t * 0.35),
+        fbm(p * 1.4 + 2.2 * q + vec2(8.3, 2.8) - t * 0.3)
+      );
+      float f = fbm(p * 1.4 + 2.5 * r);
 
-      vec3 col = mix(u_colorA, u_colorB, smoothstep(0.2, 0.8, n));
-      col = mix(col, u_colorC, smoothstep(0.45, 0.9, n2));
+      vec3 col = mix(u_colorA, u_colorB, clamp(f * f * 1.6, 0.0, 1.0));
+      col = mix(col, u_colorC, clamp(dot(r, q) * 0.6, 0.0, 1.0));
 
-      float vig = smoothstep(1.35, 0.15, length(p));
-      col *= 0.55 + 0.45 * vig;
+      // Vignettatura dolce: sfuma verso il centro
+      float vig = smoothstep(1.5, 0.25, length(p));
+      col *= 0.62 + 0.38 * vig;
 
-      gl_FragColor = vec4(col, 0.5);
+      // Dithering per eliminare il banding dei gradienti morbidi
+      col += (hash(gl_FragCoord.xy) - 0.5) * (2.0 / 255.0);
+
+      gl_FragColor = vec4(col, 0.62);
     }
   `
 
@@ -112,15 +124,15 @@ export function useLiquidShader() {
   const colorsFor = (isDark: boolean): [number[], number[], number[]] => {
     if (isDark) {
       return [
-        [0.13, 0.25, 0.5],
-        [0.2, 0.16, 0.35],
-        [0.33, 0.27, 0.08],
+        [0.10, 0.20, 0.45],   // blu profondo
+        [0.38, 0.29, 0.07],   // oro scuro
+        [0.14, 0.30, 0.62],   // blu medio
       ]
     }
     return [
-      [0.32, 0.55, 0.95],
-      [0.95, 0.78, 0.25],
-      [0.45, 0.65, 0.98],
+      [0.28, 0.50, 0.96],   // blu
+      [0.97, 0.75, 0.16],   // oro
+      [0.55, 0.70, 1.00],   // azzurro chiaro
     ]
   }
 
