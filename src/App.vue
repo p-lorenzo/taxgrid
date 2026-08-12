@@ -3,6 +3,7 @@ import { useTaxStore } from './store/taxStore'
 import { Switch } from '@headlessui/vue'
 import Footer from './components/Footer.vue'
 import ComparisonChart from './components/ComparisonChart.vue'
+import TaxDeadlines from './components/TaxDeadlines.vue'
 import CalculationBreakdown from './components/CalculationBreakdown.vue'
 import ThemeToggle from './components/ThemeToggle.vue'
 import CardForfettario from './components/CardForfettario.vue'
@@ -506,6 +507,11 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
     <!-- Grafico di Confronto (spostato in fondo, sotto le card) -->
     <div class="max-w-[1600px] w-full mx-auto mt-12">
       <ComparisonChart />
+    </div>
+
+    <!-- Calendario Scadenze Fiscali -->
+    <div class="max-w-[1600px] w-full mx-auto mt-8">
+      <TaxDeadlines />
     </div>
 
     <KoFiSupport />

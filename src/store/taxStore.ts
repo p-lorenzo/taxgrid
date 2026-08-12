@@ -8,10 +8,12 @@ import type {
   PrevidentialFund,
 } from '../fiscal-rules'
 import {
+  buildDeadlines,
   calculateBusinessContributions,
   calculatePersonalTaxPosition,
   describeProgressiveTax,
 } from '../tax-engine'
+import type { AccontoMethod, DeadlineRegime } from '../tax-engine'
 
 export interface AtecoCategory {
   id: string
@@ -77,6 +79,10 @@ export const useTaxStore = defineStore('taxStore', () => {
   const showOrdinario = ref(true)
   const showDipendente = ref(true)
   const cardOrder = ref<string[]>(['forfettario', 'ordinario', 'dipendente'])
+
+  const deadlineRegime = ref<DeadlineRegime>('forfettario')
+  const accontoMethod = ref<AccontoMethod>('storico')
+  const expectedTax = ref<number>(0)
 
   const forfettarioCassa = ref<PrevidentialFund>('gestione_separata')
   const forfettarioStartup = ref(false)
@@ -423,6 +429,31 @@ export const useTaxStore = defineStore('taxStore', () => {
     }
   })
 
+  const deadlines = computed(() => {
+    const isForfettario = deadlineRegime.value === 'forfettario'
+    const result = isForfettario ? forfettarioResult.value : ordinarioResult.value
+    const contributionFund = isForfettario ? forfettarioCassa.value : ordinarioCassa.value
+    // Imposta annuale 2026: sostitutiva per il forfettario, IRPEF incrementale per l'ordinario.
+    const annualTax = Math.max(result.tasse, 0)
+    // Acconto storico: metà dell'imposta dell'anno precedente. In assenza di storico reale
+    // usiamo l'imposta corrente come proxy (primo anno di attività → 0).
+    const previousYearTax = isForfettario ? annualTax : annualTax
+    const addizionali = isForfettario
+      ? 0
+      : Math.max(ordinarioResult.value.baseTaxPosition.regionalTax + ordinarioResult.value.baseTaxPosition.municipalTax, 0)
+    return buildDeadlines({
+      regime: deadlineRegime.value,
+      annualTax,
+      previousYearTax,
+      expectedTax: Math.max(expectedTax.value, 0),
+      accontoMethod: accontoMethod.value,
+      contributionAmount: result.inps,
+      contributionFund,
+      regionalTax: addizionali,
+      municipalTax: 0,
+    })
+  })
+
   const validationIssues = computed<ValidationIssue[]>(() => {
     const issues: ValidationIssue[] = []
     if (forfettarioStatus.value.level === 'warning') {
@@ -482,6 +513,9 @@ export const useTaxStore = defineStore('taxStore', () => {
     showOrdinario: showOrdinario.value,
     showDipendente: showDipendente.value,
     cardOrder: cardOrder.value,
+    deadlineRegime: deadlineRegime.value,
+    accontoMethod: accontoMethod.value,
+    expectedTax: expectedTax.value,
   })
 
   const applyState = (parsed: Record<string, unknown>) => {
@@ -531,6 +565,9 @@ export const useTaxStore = defineStore('taxStore', () => {
       const filtered = parsed.cardOrder.map(String).filter((id) => id !== 'srl')
       if (filtered.length) cardOrder.value = filtered
     }
+    deadlineRegime.value = parsed.deadlineRegime === 'ordinario' ? 'ordinario' : 'forfettario'
+    accontoMethod.value = parsed.accontoMethod === 'previsionale' ? 'previsionale' : 'storico'
+    expectedTax.value = Number(parsed.expectedTax ?? 0)
   }
 
   const loadState = () => {
@@ -577,6 +614,9 @@ export const useTaxStore = defineStore('taxStore', () => {
           showOrdinario: parsed.vo,
           showDipendente: parsed.vd,
           cardOrder: parsed.co,
+          deadlineRegime: parsed.dr,
+          accontoMethod: parsed.am2,
+          expectedTax: parsed.et,
         })
       } else {
         applyState(parsed)
@@ -597,7 +637,7 @@ export const useTaxStore = defineStore('taxStore', () => {
     url.search = ''
     const state = stateSnapshot()
     const compactState = {
-      v: 2, y: state.fiscalYear, f: state.fatturato, m: state.inputMode, a: state.advancedMode,
+      v: 3, y: state.fiscalYear, f: state.fatturato, m: state.inputMode, a: state.advancedMode,
       cr: state.costiOperativiReali, cf: state.costiFiscalmenteDeducibili, d: state.speseDetraibili,
       ac: state.atecoCategory, ax: state.atecoCoef, mm: state.mesiParagone,
       h: state.hasLavoroDipendente, r: state.ralDipendente, rp: state.redditoDipendentePrecedente,
@@ -606,6 +646,7 @@ export const useTaxStore = defineStore('taxStore', () => {
       be: state.businessEnrollment, fc: state.forfettarioCassa, fs: state.forfettarioStartup,
       fr: state.forfettarioContributionRelief, oc: state.ordinarioCassa, or: state.ordinarioContributionRelief,
       vf: state.showForfettario, vo: state.showOrdinario, vd: state.showDipendente, co: state.cardOrder,
+      dr: state.deadlineRegime, am2: state.accontoMethod, et: state.expectedTax,
     }
     url.searchParams.set('data', btoa(JSON.stringify(compactState)))
     return url.toString()
@@ -645,6 +686,10 @@ export const useTaxStore = defineStore('taxStore', () => {
     dipendenteResult,
     forfettarioStatus,
     validationIssues,
+    deadlines,
+    deadlineRegime,
+    accontoMethod,
+    expectedTax,
     mesiParagone,
     hasLavoroDipendente,
     ralDipendente,

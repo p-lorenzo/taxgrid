@@ -165,10 +165,46 @@ describe('TaxStore 2026 fiscal engine', () => {
     const store = useTaxStore()
     const url = new URL(store.buildShareUrl())
     const decoded = JSON.parse(atob(url.searchParams.get('data')!))
-    expect(decoded).toMatchObject({ v: 2, y: 2026, mi: 122_295 })
+    expect(decoded).toMatchObject({ v: 3, y: 2026, mi: 122_295 })
     expect(decoded).toHaveProperty('cr')
     expect(decoded).toHaveProperty('cf')
     expect(decoded).toHaveProperty('be')
+    expect(decoded).toHaveProperty('dr')
+    expect(decoded).toHaveProperty('am2')
+    expect(decoded).toHaveProperty('et')
+  })
+
+  it('builds a 2026 deadline timeline for the selected regime', () => {
+    const store = useTaxStore()
+    store.deadlineRegime = 'forfettario'
+    store.accontoMethod = 'storico'
+    const events = store.deadlines
+    expect(events.length).toBeGreaterThan(0)
+    // Il forfettario professionisti ha saldo + 2 acconti + saldo 2026 (imposta>0).
+    expect(events.some((e) => e.type === 'saldo')).toBe(true)
+    expect(events.some((e) => e.type === 'acconto')).toBe(true)
+    // Gestione Separata default → rate contributi a giugno e novembre.
+    expect(events.some((e) => e.label.includes('1° rata'))).toBe(true)
+  })
+
+  it('uses previsionale acconto with expected tax override', () => {
+    const store = useTaxStore()
+    store.deadlineRegime = 'ordinario'
+    store.accontoMethod = 'previsionale'
+    store.expectedTax = 9_000
+    const events = store.deadlines
+    const acconto = events.find((e) => e.label.includes('1° acconto'))
+    expect(acconto?.amount).toBe(4_500)
+  })
+
+  it('serializes deadline parameters in a compact share URL', () => {
+    const store = useTaxStore()
+    store.deadlineRegime = 'ordinario'
+    store.accontoMethod = 'previsionale'
+    store.expectedTax = 7_500
+    const url = new URL(store.buildShareUrl())
+    const decoded = JSON.parse(atob(url.searchParams.get('data')!))
+    expect(decoded).toMatchObject({ v: 3, dr: 'ordinario', am2: 'previsionale', et: 7_500 })
   })
 
   it('converts RAL and revenue using the configurable employer assumption', () => {
