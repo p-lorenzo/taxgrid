@@ -1,18 +1,14 @@
 import { onBeforeUnmount } from 'vue'
 
 /**
- * Layer WebGL di distorsione liquida (look "liquid metal") dietro i pannelli.
+ * Griglia WebGL animata ispirata ai linguaggi visuali dei sistemi tecnici.
+ * Celle blu formano segnali discreti in movimento; accenti oro evidenziano
+ * intersezioni sporadiche. Il canvas resta sotto i pannelli glass.
  *
- * Renderizza un fluido animato (perlin flow) a bassa risoluzione su un canvas
- * fixed, con colori legati al tema (blu+oro in light, tonalità più scure in
- * dark). I pannelli glass (backdrop-filter) sfocano e saturano questo layer,
- * simulando la rifrazione ai bordi stile macOS.
- *
- * Graceful degradation: se WebGL non è disponibile, il canvas resta vuoto e
- * l'app funziona normalmente. Rispetta `prefers-reduced-motion` (il CSS nasconde
- * il canvas) e si disattiva quando la tab non è visibile (visibilitychange).
+ * Graceful degradation senza WebGL. Rispetta `prefers-reduced-motion` via CSS
+ * e sospende il rendering quando la tab non è visibile.
  */
-export function useLiquidShader() {
+export function useSignalGridShader() {
   let canvas: HTMLCanvasElement | null = null
   let gl: WebGLRenderingContext | null = null
   let program: WebGLProgram | null = null
@@ -42,61 +38,54 @@ export function useLiquidShader() {
     float hash(vec2 p) {
       return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
     }
-    float noise(vec2 p) {
-      vec2 i = floor(p);
-      vec2 f = fract(p);
-      vec2 u = f * f * (3.0 - 2.0 * f);
-      float a = hash(i);
-      float b = hash(i + vec2(1.0, 0.0));
-      float c = hash(i + vec2(0.0, 1.0));
-      float d = hash(i + vec2(1.0, 1.0));
-      return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
-    }
-    float fbm(vec2 p) {
-      float v = 0.0;
-      float amp = 0.5;
-      for (int i = 0; i < 4; i++) {
-        v += amp * noise(p);
-        p = p * 2.03 + vec2(11.0, 7.0);
-        amp *= 0.5;
-      }
-      return v;
-    }
 
     void main() {
-      vec2 uv = gl_FragCoord.xy / u_res;
-      vec2 p = uv * 2.0 - 1.0;
-      p.x *= u_res.x / u_res.y;
+      // Celle da 54 px: misura stabile su desktop, sufficientemente ampia su mobile.
+      float cellSize = 54.0;
+      vec2 grid = gl_FragCoord.xy / cellSize;
+      vec2 cell = floor(grid);
+      vec2 local = fract(grid);
+      vec2 gridCount = u_res / cellSize;
+      float t = u_time * 0.42;
 
-      float t = u_time * 0.07;
+      // Bordo ortogonale sottile, stile blueprint/technical interface.
+      float edge = min(min(local.x, 1.0 - local.x), min(local.y, 1.0 - local.y));
+      float gridLine = 1.0 - smoothstep(0.012, 0.034, edge);
+      float interior = smoothstep(0.055, 0.09, edge);
 
-      // Ondulazione minima: struttura netta, movimento organico quasi impercettibile
-      float wob = fbm(p * 1.8 + vec2(t * 0.25, -t * 0.2)) - 0.5;
+      // Tre segnali discreti attraversano la griglia come nastri di dati.
+      float waveA = gridCount.y * (0.57
+        + 0.13 * sin(cell.x * 0.32 + t)
+        + 0.045 * sin(cell.x * 0.11 - t * 0.7));
+      float waveB = gridCount.y * (0.31
+        + 0.09 * sin(cell.x * 0.25 - t * 0.72 + 2.4));
+      float waveC = gridCount.y * (0.73
+        + 0.055 * sin(cell.x * 0.19 + t * 0.48 + 4.1));
 
-      // Reticolo a rombi ampio: due famiglie di diagonali in controfase
-      float density = 7.0;
-      float d1 = (p.x + p.y) * density + t + wob * 0.14;
-      float d2 = (p.x - p.y) * density - t * 0.7 - wob * 0.14;
+      float bandA = 1.0 - smoothstep(0.55, 1.65, abs(cell.y - waveA));
+      float bandB = 1.0 - smoothstep(0.45, 1.25, abs(cell.y - waveB));
+      float bandC = 1.0 - smoothstep(0.35, 0.95, abs(cell.y - waveC));
 
-      float dist1 = min(fract(d1), 1.0 - fract(d1));
-      float dist2 = min(fract(d2), 1.0 - fract(d2));
-      float l1 = 1.0 - smoothstep(0.0, 0.028, dist1);
-      float l2 = 1.0 - smoothstep(0.0, 0.028, dist2);
+      // Intensità a blocchi: niente gradienti liquidi tra celle.
+      float cellSeed = hash(cell);
+      float dataPulse = 0.55 + 0.45 * sin(cell.x * 0.52 - t * 1.8 + cellSeed * 6.2831);
+      float blueCells = max(bandA, bandB * 0.68) * (0.45 + 0.55 * dataPulse) * interior;
+      blueCells = max(blueCells, bandC * 0.42 * interior);
 
-      // Modulazione spaziale: il reticolo emerge solo in aree morbide
-      float m = fbm(p * 1.1 + vec2(t * 0.2, t * 0.15));
-      float fade = 0.08 + 0.92 * smoothstep(0.38, 0.72, m);
+      // Pochi impulsi oro, lenti e localizzati sulle tracce secondarie.
+      float goldGate = smoothstep(0.82, 0.96, cellSeed);
+      float goldPulse = smoothstep(0.62, 0.98, 0.5 + 0.5 * sin(t * 0.8 + cellSeed * 9.0));
+      float goldCells = max(bandB, bandC) * goldGate * goldPulse * interior;
 
-      // Intersezioni del reticolo: bagliore oro
-      float cross = l1 * l2;
+      vec3 color = u_colorC * gridLine;
+      color += u_colorA * blueCells;
+      color = mix(color, u_colorB, goldCells * 0.78);
 
-      vec3 col = u_colorA * l1 * 0.85 + u_colorC * l2 * 0.6 + u_colorB * cross;
-      float alpha = clamp(l1 * 0.45 + l2 * 0.28 + cross * 0.6, 0.0, 1.0) * fade;
+      float alpha = gridLine * 0.075;
+      alpha += blueCells * 0.34;
+      alpha += goldCells * 0.24;
 
-      // Pulsazione lenta globale
-      alpha *= 0.88 + 0.12 * sin(t * 0.5);
-
-      gl_FragColor = vec4(col, alpha * 0.16);
+      gl_FragColor = vec4(color, clamp(alpha, 0.0, 0.48));
     }
   `
 
@@ -130,15 +119,15 @@ export function useLiquidShader() {
   const colorsFor = (isDark: boolean): [number[], number[], number[]] => {
     if (isDark) {
       return [
-        [0.38, 0.55, 1.00],   // blu luminoso
-        [0.95, 0.72, 0.10],   // oro
-        [0.30, 0.48, 0.85],   // blu medio
+        [0.12, 0.34, 1.00],   // celle blu elettrico
+        [0.95, 0.72, 0.10],   // impulsi oro
+        [0.32, 0.43, 0.62],   // griglia scura
       ]
     }
     return [
-      [0.28, 0.50, 0.96],   // blu
-      [0.97, 0.75, 0.16],   // oro
-      [0.50, 0.66, 1.00],   // azzurro chiaro
+      [0.12, 0.38, 0.96],   // celle blu
+      [0.90, 0.63, 0.04],   // impulsi oro
+      [0.48, 0.57, 0.72],   // griglia blueprint
     ]
   }
 

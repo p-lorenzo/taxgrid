@@ -15,14 +15,14 @@ import PrintReport from './components/PrintReport.vue'
 import PwaInstallPrompt from './components/PwaInstallPrompt.vue'
 import KoFiSupport from './components/KoFiSupport.vue'
 import { computed, onMounted, ref, useTemplateRef } from 'vue'
-import { useLiquidShader } from './composables/useLiquidShader'
+import { useSignalGridShader } from './composables/useSignalGridShader'
 
 const store = useTaxStore()
-const liquidShader = useLiquidShader()
+const signalGridShader = useSignalGridShader()
 const shaderCanvas = useTemplateRef<HTMLCanvasElement>('shaderCanvas')
 
 onMounted(() => {
-  if (shaderCanvas.value) liquidShader.mount(shaderCanvas.value)
+  if (shaderCanvas.value) signalGridShader.mount(shaderCanvas.value)
 })
 
 const formatCurrency = (val: number) => {
@@ -109,7 +109,7 @@ const openBreakdown = (regime: 'forfettario' | 'ordinario' | 'dipendente') => {
 
 <template>
   <div class="min-h-screen tg-bg text-gray-900 dark:text-gray-100 p-4 sm:p-8 font-sans selection:bg-blue-600 selection:text-white">
-    <!-- Layer WebGL liquido (distorsione ai bordi dei pannelli) -->
+    <!-- Griglia WebGL animata: segnali digitali blu + impulsi oro -->
     <canvas ref="shaderCanvas" class="tg-shader-canvas print:hidden" aria-hidden="true" />
     <!-- Interactive UI (hidden on print) -->
     <div class="print:hidden">
