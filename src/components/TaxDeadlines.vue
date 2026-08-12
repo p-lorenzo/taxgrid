@@ -15,11 +15,11 @@ const formatDate = (iso: string) => {
 
 const totalPayable = computed(() => store.deadlines.reduce((sum, e) => sum + e.amount, 0))
 
-const typeStyles: Record<string, { badge: string; dot: string }> = {
-  saldo: { badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300', dot: 'bg-blue-500' },
-  acconto: { badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300', dot: 'bg-amber-500' },
-  contributi: { badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300', dot: 'bg-emerald-500' },
-  addizionali: { badge: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300', dot: 'bg-purple-500' },
+const typeStyles: Record<string, { badge: string; dot: string; line: string }> = {
+  saldo: { badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300', dot: 'bg-blue-500', line: 'bg-blue-500/40' },
+  acconto: { badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300', dot: 'bg-amber-500', line: 'bg-amber-500/40' },
+  contributi: { badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300', dot: 'bg-emerald-500', line: 'bg-emerald-500/40' },
+  addizionali: { badge: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300', dot: 'bg-purple-500', line: 'bg-purple-500/40' },
 }
 
 const typeLabel: Record<string, string> = {
@@ -110,11 +110,15 @@ const typeLabel: Record<string, string> = {
 
     <!-- Timeline -->
     <div v-if="store.deadlines.length" class="relative">
-      <!-- vertical line -->
-      <div class="absolute left-[13px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-blue-500/40 via-[#e2af0d]/40 to-blue-500/40 rounded-full" />
-
       <ol class="space-y-4">
-        <li v-for="(event, index) in store.deadlines" :key="index" class="relative flex gap-4 pl-1">
+        <li v-for="(event, index) in store.deadlines" :key="index" class="relative flex gap-4">
+          <!-- Segmento di connessione: centrato sul pallino, si ferma all'ultimo -->
+          <div
+            v-if="index < store.deadlines.length - 1"
+            class="absolute left-[13px] top-[18px] bottom-[-20px] w-0.5 rounded-full"
+            :class="typeStyles[event.type].line"
+            aria-hidden="true"
+          />
           <!-- dot -->
           <div class="relative z-10 mt-1 shrink-0 w-7 h-7 rounded-full flex items-center justify-center bg-white dark:bg-gray-800 border-2 shadow-sm" :class="typeStyles[event.type].dot + ' border-transparent'">
             <span class="w-2 h-2 rounded-full bg-white" />
