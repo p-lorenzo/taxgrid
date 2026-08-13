@@ -1,117 +1,156 @@
 import { describe, expect, it } from 'vitest'
+import { FISCAL_RULES_2026 } from '../fiscal-rules'
+import { calculateBusinessContributions } from './contributions'
 import { buildDeadlines, type DeadlineInput } from './deadlines'
 
 const baseInput: DeadlineInput = {
   regime: 'forfettario',
+  activityStartDate: '2024-01-01',
+  ordinaryIsaEligible: false,
   annualTax: 6_000,
   previousYearTax: 5_000,
-  expectedTax: 6_000,
+  previousTaxAdvanceBase: 5_000,
+  previousTaxAdvancesPaid: 0,
+  previousTaxCreditsWithholdings: 0,
+  expectedTax: 0,
+  useCalculatedExpectedTax: true,
   accontoMethod: 'storico',
   contributionAmount: 0,
   contributionFund: 'gestione_separata',
-  regionalTax: 0,
-  municipalTax: 0,
+  contributionRelief: 'none',
+  hasOtherCoverage: false,
+  previousContributionIncome: 0,
+  previousYearContributions: 0,
+  previousContributionAdvancesPaid: 0,
 }
 
+const find = (events: ReturnType<typeof buildDeadlines>, label: string) => events.find((event) => event.label.includes(label))
+
 describe('buildDeadlines 2026', () => {
-  it('produces saldo 2025 + 2 acconti + saldo 2026 for the monthly (professionisti) regime', () => {
-    const events = buildDeadlines(baseInput)
-    expect(events).toHaveLength(4)
-    expect(events.map((e) => e.date)).toEqual([
-      '2026-06-30', // saldo 2025
-      '2026-06-30', // 1° acconto
-      '2026-11-30', // 2° acconto
-      '2027-06-30', // saldo 2026
-    ])
-    const saldo2025 = events.find((e) => e.label.includes('Saldo imposta 2025'))
-    const primoAcconto = events.find((e) => e.label.includes('1° acconto'))
-    const secondoAcconto = events.find((e) => e.label.includes('2° acconto'))
-    const saldo2026 = events.find((e) => e.label.includes('Saldo imposta 2026'))
-    expect(saldo2025?.amount).toBe(5_000)
-    expect(primoAcconto?.amount).toBe(2_500) // storico: metà di 5.000
-    expect(secondoAcconto?.amount).toBe(2_500)
-    expect(saldo2026?.amount).toBe(6_000 - 2_500 - 2_500)
+  it('uses real prior liability for forfettario balance and 50/50 advances on 20 July', () => {
+    const events = buildDeadlines({
+      ...baseInput,
+      previousTaxAdvancesPaid: 1_500,
+      previousTaxCreditsWithholdings: 500,
+    })
+    expect(find(events, 'Saldo imposta 2025')).toMatchObject({ date: '2026-07-20', amount: 3_000 })
+    expect(find(events, '1° acconto imposta')).toMatchObject({ date: '2026-07-20', amount: 2_500 })
+    expect(find(events, '2° acconto imposta')).toMatchObject({ date: '2026-11-30', amount: 2_500 })
+    expect(find(events, 'Saldo imposta 2026')).toMatchObject({ date: '2027-06-30', amount: 1_000 })
   })
 
-  it('uses the previsionale method with expected tax override', () => {
+  it('floors prior balances after advances and credits at zero', () => {
+    const events = buildDeadlines({ ...baseInput, previousTaxAdvancesPaid: 4_000, previousTaxCreditsWithholdings: 2_000 })
+    expect(find(events, 'Saldo imposta 2025')).toBeUndefined()
+  })
+
+  it.each([
+    [51.65, 0, 0],
+    [206, 0, 206],
+    [206.01, 103.01, 103],
+  ])('applies forfettario/ISA threshold to %s', (previousYearTax, first, second) => {
+    const events = buildDeadlines({ ...baseInput, previousYearTax, previousTaxAdvanceBase: previousYearTax })
+    expect(find(events, '1° acconto imposta')?.amount ?? 0).toBe(first)
+    expect((find(events, '2° acconto imposta') ?? find(events, 'unica soluzione'))?.amount ?? 0).toBe(second)
+  })
+
+  it.each([
+    [51.65, 0, 0],
+    [257.51, 0, 257.51],
+    [257.52, 103.01, 154.51],
+  ])('applies ordinary non-ISA threshold and 40/60 split to %s', (previousYearTax, first, second) => {
+    const events = buildDeadlines({ ...baseInput, regime: 'ordinario', previousYearTax, previousTaxAdvanceBase: previousYearTax })
+    expect(find(events, '1° acconto imposta')?.amount ?? 0).toBe(first)
+    expect((find(events, '2° acconto imposta') ?? find(events, 'unica soluzione'))?.amount ?? 0).toBe(second)
+    if (first > 0) expect(find(events, '1° acconto imposta')?.date).toBe('2026-06-30')
+  })
+
+  it('uses ISA timing and split for eligible ordinary activity', () => {
+    const events = buildDeadlines({ ...baseInput, regime: 'ordinario', ordinaryIsaEligible: true, previousYearTax: 1_000, previousTaxAdvanceBase: 1_000 })
+    expect(find(events, '1° acconto imposta')).toMatchObject({ date: '2026-07-20', amount: 500 })
+  })
+
+  it('uses expected tax only for previsionale and keeps first-year advances at zero', () => {
+    const forecast = buildDeadlines({ ...baseInput, accontoMethod: 'previsionale', expectedTax: 8_000, useCalculatedExpectedTax: false })
+    expect(find(forecast, '1° acconto imposta')?.amount).toBe(4_000)
+
+    const firstYear = buildDeadlines({ ...baseInput, activityStartDate: '2026-03-10', accontoMethod: 'previsionale', expectedTax: 8_000, useCalculatedExpectedTax: false })
+    expect(firstYear.some((event) => event.type === 'acconto')).toBe(false)
+    expect(find(firstYear, 'Saldo imposta 2025')).toBeUndefined()
+    expect(find(firstYear, 'Saldo imposta 2026')?.amount).toBe(6_000)
+  })
+
+  it('accepts zero as an explicit previsionale estimate', () => {
     const events = buildDeadlines({
       ...baseInput,
       accontoMethod: 'previsionale',
-      expectedTax: 8_000,
+      useCalculatedExpectedTax: false,
+      expectedTax: 0,
     })
-    const primoAcconto = events.find((e) => e.label.includes('1° acconto'))
-    expect(primoAcconto?.amount).toBe(4_000) // metà di 8.000 prevista
+    expect(events.some((event) => event.type === 'acconto')).toBe(false)
+    expect(find(events, 'Saldo imposta 2026')?.amount).toBe(6_000)
   })
 
-  it('splits Gestione Separata contributions into two 50% instalments', () => {
+  it('calculates Gestione Separata saldo and advances from 80% prior income', () => {
     const events = buildDeadlines({
       ...baseInput,
+      previousContributionIncome: 50_000,
+      previousYearContributions: 12_000,
+      previousContributionAdvancesPaid: 9_000,
       contributionAmount: 13_035,
-      contributionFund: 'gestione_separata',
     })
-    const first = events.find((e) => e.label.includes('1° rata'))
-    const second = events.find((e) => e.label.includes('2° rata'))
-    expect(first?.amount).toBeCloseTo(6_517.5, 2)
-    expect(second?.amount).toBeCloseTo(6_517.5, 2)
-    expect(first?.date).toBe('2026-06-30')
-    expect(second?.date).toBe('2026-11-30')
+    expect(find(events, 'Saldo contributi INPS 2025')?.amount).toBe(3_000)
+    const totalAdvance = 50_000 * 0.8 * FISCAL_RULES_2026.inps.gestioneSeparata.professional.standardRate
+    expect(find(events, 'Gestione Separata — 1° acconto')?.amount).toBeCloseTo(totalAdvance / 2, 2)
+    expect(find(events, 'Gestione Separata — 2° acconto')?.amount).toBeCloseTo(totalAdvance / 2, 2)
+    expect(find(events, 'Saldo contributi INPS 2026')?.amount).toBeCloseTo(13_035 - totalAdvance, 2)
   })
 
-  it('applies 40/30/30 instalments for Artigiani/Commercianti with the 18/05 acconto date', () => {
+  it('creates no Gestione Separata 2026 payments for first-year activity', () => {
+    const events = buildDeadlines({ ...baseInput, activityStartDate: '2026-02-01', annualTax: 0, contributionAmount: 10_000 })
+    expect(events.filter((event) => event.type === 'contributi')).toEqual([
+      expect.objectContaining({ date: '2027-06-30', amount: 10_000 }),
+    ])
+  })
+
+  it('uses four statutory fixed installments and prior-income excess advances for Artigiani', () => {
+    const projected = calculateBusinessContributions({ income: 60_000, fund: 'artigiani' }).total
     const events = buildDeadlines({
       ...baseInput,
-      contributionAmount: 10_000,
       contributionFund: 'artigiani',
+      contributionAmount: projected,
+      previousContributionIncome: 60_000,
     })
-    const acconto = events.find((e) => e.label.includes('acconto (40%)'))
-    const saldo1 = events.find((e) => e.label.includes('saldo (30%)'))
-    const saldo2 = events.find((e) => e.label.includes('2° saldo (30%)'))
-    expect(acconto?.date).toBe('2026-05-18')
-    expect(acconto?.amount).toBe(4_000)
-    expect(saldo1?.amount).toBe(3_000)
-    expect(saldo2?.amount).toBe(3_000)
+    const fixed = events.filter((event) => event.label.includes('minimale rata'))
+    expect(fixed.map((event) => event.date)).toEqual(['2026-05-18', '2026-08-20', '2026-11-17', '2027-02-16'])
+    expect(fixed.reduce((sum, event) => sum + event.amount, 0)).toBe(FISCAL_RULES_2026.inps.business.artigiani.minimumContribution)
+    const expectedExcess = projected - FISCAL_RULES_2026.inps.business.artigiani.minimumContribution
+    expect(find(events, 'eccedenza minimale — 1° acconto')?.amount).toBeCloseTo(expectedExcess / 2, 2)
+    expect(find(events, 'eccedenza minimale — 2° acconto')?.amount).toBeCloseTo(expectedExcess / 2, 2)
   })
 
-  it('adds addizionali acconto/saldo only for the ordinario regime', () => {
+  it('prorates first-year business minimum by active months and has no excess advance', () => {
+    const fullMinimum = FISCAL_RULES_2026.inps.business.commercianti.minimumContribution
     const events = buildDeadlines({
       ...baseInput,
-      regime: 'ordinario',
-      regionalTax: 865,
-      municipalTax: 400,
+      activityStartDate: '2026-07-12',
+      annualTax: 0,
+      contributionFund: 'commercianti',
+      contributionAmount: fullMinimum,
+      previousContributionIncome: 80_000,
     })
-    const acconto = events.find((e) => e.label.includes('acconto (30%)'))
-    const saldo = events.find((e) => e.label.includes('saldo (70%)'))
-    expect(acconto?.amount).toBeCloseTo((865 + 400) * 0.3, 2)
-    expect(saldo?.amount).toBeCloseTo((865 + 400) * 0.7, 2)
-    expect(acconto?.date).toBe('2026-11-30')
-    expect(saldo?.date).toBe('2027-06-30')
-
-    const forfettarioEvents = buildDeadlines(baseInput)
-    expect(forfettarioEvents.some((e) => e.type === 'addizionali')).toBe(false)
+    const fixed = events.filter((event) => event.label.includes('minimale rata'))
+    expect(fixed.map((event) => event.date)).toEqual(['2026-08-20', '2026-11-17', '2027-02-16'])
+    expect(fixed.reduce((sum, event) => sum + event.amount, 0)).toBeCloseTo(fullMinimum * 6 / 12, 2)
+    expect(find(events, 'eccedenza minimale')).toBeUndefined()
+    expect(fixed[0].detail).toContain('6 mesi')
   })
 
-  it('sorts events chronologically', () => {
-    const events = buildDeadlines({
-      ...baseInput,
-      contributionAmount: 10_000,
-      contributionFund: 'artigiani',
-      regime: 'ordinario',
-      regionalTax: 500,
-      municipalTax: 200,
-    })
-    const dates = events.map((e) => e.date)
-    expect([...dates].sort()).toEqual(dates)
-  })
-
-  it('handles zero previous-year tax (first-year activity)', () => {
-    const events = buildDeadlines({
-      ...baseInput,
-      previousYearTax: 0,
-      annualTax: 6_000,
-    })
-    expect(events.some((e) => e.label.includes('Saldo imposta 2025'))).toBe(false)
-    // In assenza di storico, gli acconti restano 0 con metodo storico.
-    expect(events.some((e) => e.type === 'acconto')).toBe(false)
-    expect(events.find((e) => e.label.includes('Saldo imposta 2026'))?.amount).toBe(6_000)
+  it('returns no forecast for missing/invalid opening date and sorts valid events', () => {
+    expect(buildDeadlines({ ...baseInput, activityStartDate: '' })).toEqual([])
+    const events = buildDeadlines({ ...baseInput, contributionFund: 'artigiani', contributionAmount: 10_000, previousContributionIncome: 60_000 })
+    const dates = events.map((event) => event.date)
+    expect(dates).toEqual([...dates].sort())
+    expect(events.some((event) => event.type === 'addizionali')).toBe(false)
   })
 })

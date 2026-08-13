@@ -165,7 +165,7 @@ describe('TaxStore 2026 fiscal engine', () => {
     const store = useTaxStore()
     const url = new URL(store.buildShareUrl())
     const decoded = JSON.parse(atob(url.searchParams.get('data')!))
-    expect(decoded).toMatchObject({ v: 3, y: 2026, mi: 122_295 })
+    expect(decoded).toMatchObject({ v: 4, y: 2026, mi: 122_295 })
     expect(decoded).toHaveProperty('cr')
     expect(decoded).toHaveProperty('cf')
     expect(decoded).toHaveProperty('be')
@@ -174,37 +174,87 @@ describe('TaxStore 2026 fiscal engine', () => {
     expect(decoded).toHaveProperty('et')
   })
 
-  it('builds a 2026 deadline timeline for the selected regime', () => {
+  it('requires opening date and builds deadlines from explicit historical facts', () => {
     const store = useTaxStore()
+    expect(store.deadlines).toEqual([])
+    expect(store.deadlineForecastComplete).toBe(false)
+
+    store.activityStartDate = '2024-01-01'
     store.deadlineRegime = 'forfettario'
-    store.accontoMethod = 'storico'
+    store.previousYearTax = 5_000
+    store.previousTaxAdvanceBase = 5_000
+    store.previousTaxAdvancesPaid = 1_000
+    store.previousTaxCreditsWithholdings = 500
+    store.previousContributionIncome = 40_000
     const events = store.deadlines
-    expect(events.length).toBeGreaterThan(0)
-    // Il forfettario professionisti ha saldo + 2 acconti + saldo 2026 (imposta>0).
-    expect(events.some((e) => e.type === 'saldo')).toBe(true)
-    expect(events.some((e) => e.type === 'acconto')).toBe(true)
-    // Gestione Separata default → rate contributi a giugno e novembre.
-    expect(events.some((e) => e.label.includes('1° rata'))).toBe(true)
+    expect(events.find((event) => event.label.includes('Saldo imposta 2025'))?.amount).toBe(3_500)
+    expect(events.find((event) => event.label.includes('1° acconto imposta'))).toMatchObject({ date: '2026-07-20', amount: 2_500 })
   })
 
-  it('uses previsionale acconto with expected tax override', () => {
+  it('uses ordinary previsionale override with non-ISA 40/60 split', () => {
     const store = useTaxStore()
+    store.activityStartDate = '2024-01-01'
     store.deadlineRegime = 'ordinario'
     store.accontoMethod = 'previsionale'
+    store.useCalculatedExpectedTax = false
     store.expectedTax = 9_000
     const events = store.deadlines
-    const acconto = events.find((e) => e.label.includes('1° acconto'))
-    expect(acconto?.amount).toBe(4_500)
+    expect(events.find((event) => event.label.includes('1° acconto'))).toMatchObject({ date: '2026-06-30', amount: 3_600 })
+    expect(events.find((event) => event.label.includes('2° acconto'))?.amount).toBe(5_400)
   })
 
-  it('serializes deadline parameters in a compact share URL', () => {
+  it('persists deadline facts and restores compact v4 URL state', async () => {
     const store = useTaxStore()
     store.deadlineRegime = 'ordinario'
     store.accontoMethod = 'previsionale'
     store.expectedTax = 7_500
+    store.useCalculatedExpectedTax = false
+    store.activityStartDate = '2023-04-15'
+    store.previousYearTax = 4_200
+    store.previousTaxAdvanceBase = 3_900
+    store.previousTaxAdvancesPaid = 1_300
+    store.previousTaxCreditsWithholdings = 250
+    store.previousContributionIncome = 31_000
+    store.previousYearContributions = 8_000
+    store.previousContributionAdvancesPaid = 6_000
+    store.ordinaryIsaEligible = true
+    await nextTick()
+    expect(JSON.parse(localStorage.getItem('taxgrid_state')!)).toMatchObject({
+      activityStartDate: '2023-04-15', previousYearTax: 4_200, previousTaxAdvanceBase: 3_900,
+      useCalculatedExpectedTax: false, previousContributionIncome: 31_000, ordinaryIsaEligible: true,
+    })
     const url = new URL(store.buildShareUrl())
     const decoded = JSON.parse(atob(url.searchParams.get('data')!))
-    expect(decoded).toMatchObject({ v: 3, dr: 'ordinario', am2: 'previsionale', et: 7_500 })
+    expect(decoded).toMatchObject({
+      v: 4, dr: 'ordinario', am2: 'previsionale', et: 7_500, od: '2023-04-15',
+      pyt: 4_200, pab: 3_900, pta: 1_300, ptc: 250, uce: false,
+      pci: 31_000, pyc: 8_000, pca: 6_000, oi: true,
+    })
+
+    Object.defineProperty(window, 'location', { value: url, writable: true, configurable: true })
+    setActivePinia(createPinia())
+    const restored = useTaxStore()
+    expect(restored.activityStartDate).toBe('2023-04-15')
+    expect(restored.previousYearTax).toBe(4_200)
+    expect(restored.previousTaxAdvanceBase).toBe(3_900)
+    expect(restored.useCalculatedExpectedTax).toBe(false)
+    expect(restored.previousContributionIncome).toBe(31_000)
+    expect(restored.ordinaryIsaEligible).toBe(true)
+  })
+
+  it('decodes legacy compact v3 deadline state', () => {
+    const encoded = btoa(JSON.stringify({ v: 3, y: 2026, f: 42_000, dr: 'ordinario', am2: 'previsionale', et: 3_200 }))
+    Object.defineProperty(window, 'location', {
+      value: new URL(`https://taxgrid.it/?data=${encodeURIComponent(encoded)}`),
+      writable: true,
+      configurable: true,
+    })
+    const store = useTaxStore()
+    expect(store.fatturato).toBe(42_000)
+    expect(store.deadlineRegime).toBe('ordinario')
+    expect(store.accontoMethod).toBe('previsionale')
+    expect(store.expectedTax).toBe(3_200)
+    expect(store.useCalculatedExpectedTax).toBe(false)
   })
 
   it('converts RAL and revenue using the configurable employer assumption', () => {

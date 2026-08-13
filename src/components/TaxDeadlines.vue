@@ -13,7 +13,18 @@ const formatDate = (iso: string) => {
   return new Date(y, m - 1, d).toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' })
 }
 
-const totalPayable = computed(() => store.deadlines.reduce((sum, e) => sum + e.amount, 0))
+const total2026 = computed(() => store.deadlines.filter((event) => event.date.startsWith('2026-')).reduce((sum, event) => sum + event.amount, 0))
+const total2027 = computed(() => store.deadlines.filter((event) => event.date.startsWith('2027-')).reduce((sum, event) => sum + event.amount, 0))
+const startsIn2026 = computed(() => store.deadlineForecastComplete && store.activityStartDate.startsWith('2026-'))
+const hasPriorData = computed(() => [
+  store.previousYearTax,
+  store.previousTaxAdvanceBase,
+  store.previousTaxAdvancesPaid,
+  store.previousTaxCreditsWithholdings,
+  store.previousContributionIncome,
+  store.previousYearContributions,
+  store.previousContributionAdvancesPaid,
+].some((value) => Number(value) > 0))
 
 const typeStyles: Record<string, { badge: string; dot: string; line: string }> = {
   saldo: { badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300', dot: 'bg-blue-500', line: 'bg-blue-500/40' },
@@ -43,7 +54,7 @@ const typeLabel: Record<string, string> = {
         <div>
           <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Scadenze Fiscali {{ store.fiscalYear }}</h2>
           <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            Calendario di cassa stimato (saldo, acconti, contributi e addizionali) per il regime selezionato.
+            Calendario di cassa stimato per imposta principale e contributi del regime selezionato.
           </p>
         </div>
       </div>
@@ -66,47 +77,87 @@ const typeLabel: Record<string, string> = {
       </div>
     </div>
 
-    <!-- Controls: metodo acconto + override -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 p-4 rounded-xl bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700/50">
-      <div>
-        <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Metodo acconto</label>
-        <div class="flex flex-wrap gap-2">
-          <button
-            @click="store.accontoMethod = 'storico'"
-            :class="store.accontoMethod === 'storico'
-              ? 'border-[#e2af0d] bg-[#e2af0d]/10 text-[#a97f00] dark:text-[#e2af0d]'
-              : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300'"
-            class="px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer"
-          >
-            Storico (imposta {{ store.fiscalYear - 1 }})
-          </button>
-          <button
-            @click="store.accontoMethod = 'previsionale'"
-            :class="store.accontoMethod === 'previsionale'
-              ? 'border-[#e2af0d] bg-[#e2af0d]/10 text-[#a97f00] dark:text-[#e2af0d]'
-              : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300'"
-            class="px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer"
-          >
-            Previsionale (imposta stimata 2026)
-          </button>
+    <!-- Dati necessari: fatti storici che determinano saldi e acconti -->
+    <section class="mb-6 p-4 rounded-xl bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700/50" aria-labelledby="deadline-data-title">
+      <div class="flex flex-wrap items-start justify-between gap-2 mb-4">
+        <div>
+          <h3 id="deadline-data-title" class="text-sm font-bold text-gray-900 dark:text-white">Dati necessari</h3>
+          <p class="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Inserisci dati relativi al 2025 riportati nella dichiarazione 2026. Valore 0 significa nessun importo.</p>
         </div>
+        <span v-if="startsIn2026" class="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">Prima attività: storico non richiesto</span>
+        <span v-else-if="store.deadlineForecastComplete && hasPriorData" class="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">Dati minimi completi</span>
+        <span v-else-if="store.deadlineForecastComplete" class="text-[11px] font-semibold text-amber-700 dark:text-amber-300">Storico tutto a zero: verifica gli importi</span>
+        <span v-else class="text-[11px] font-semibold text-amber-700 dark:text-amber-300">Data apertura obbligatoria</span>
       </div>
-      <div v-if="store.accontoMethod === 'previsionale'">
-        <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 flex items-center">
-          Imposta prevista {{ store.fiscalYear }}
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label for="activity-start-date" class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Data apertura Partita IVA *</label>
+          <input id="activity-start-date" v-model="store.activityStartDate" type="date" max="2026-12-31" required class="tg-input block w-full px-3 py-2 rounded-xl text-sm" />
+          <p class="text-[10px] text-gray-400 mt-1">Determina presenza dello storico e mesi del minimale INPS.</p>
+        </div>
+        <label v-if="store.deadlineRegime === 'ordinario'" class="flex items-start gap-2 rounded-xl border border-gray-200 dark:border-gray-700 p-3 text-xs text-gray-700 dark:text-gray-300">
+          <input v-model="store.ordinaryIsaEligible" type="checkbox" class="mt-0.5 accent-[#e2af0d]" />
+          <span><strong>Soggetto ISA / proroga 2026</strong><br><span class="text-[10px] text-gray-400">Usa scadenza 20 luglio e ripartizione acconti 50/50.</span></span>
         </label>
-        <div class="relative">
-          <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 text-sm">€</span>
-          <input
-            type="number"
-            v-model.number="store.expectedTax"
-            min="0"
-            class="block w-full pl-8 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-[#e2af0d] focus:border-[#e2af0d] transition-colors"
-          />
-        </div>
-        <p class="text-[10px] text-gray-400 mt-1">Lascia 0 per usare l’imposta calcolata dal simulatore.</p>
       </div>
-    </div>
+
+      <div v-if="startsIn2026" class="mt-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
+        Prima attività nel 2026: saldo 2025 e acconti storici fiscali/INPS azzerati. Gestione Separata sarà versata dal saldo 2027; minimale Artigiani/Commercianti riproporzionato ai mesi attivi.
+      </div>
+
+      <div v-else-if="store.deadlineForecastComplete" class="mt-4">
+        <h4 class="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Storico fiscale 2025</h4>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <label class="text-xs text-gray-600 dark:text-gray-300">Imposta netta dovuta 2025
+            <input v-model.number="store.previousYearTax" type="number" min="0" class="tg-input block w-full mt-1 px-3 py-2 rounded-xl text-sm" />
+          </label>
+          <label class="text-xs text-gray-600 dark:text-gray-300">Base acconti da dichiarazione
+            <input v-model.number="store.previousTaxAdvanceBase" type="number" min="0" class="tg-input block w-full mt-1 px-3 py-2 rounded-xl text-sm" />
+          </label>
+          <label class="text-xs text-gray-600 dark:text-gray-300">Acconti fiscali già versati
+            <input v-model.number="store.previousTaxAdvancesPaid" type="number" min="0" class="tg-input block w-full mt-1 px-3 py-2 rounded-xl text-sm" />
+          </label>
+          <label class="text-xs text-gray-600 dark:text-gray-300">Crediti e ritenute
+            <input v-model.number="store.previousTaxCreditsWithholdings" type="number" min="0" class="tg-input block w-full mt-1 px-3 py-2 rounded-xl text-sm" />
+          </label>
+        </div>
+        <p class="text-[10px] text-gray-400 mt-1">Saldo 2025 = imposta netta − acconti − crediti/ritenute. Base acconti: importo specifico indicato nella dichiarazione, non saldo residuo.</p>
+
+        <h4 class="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mt-4 mb-2">Storico previdenziale 2025</h4>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <label class="text-xs text-gray-600 dark:text-gray-300">Reddito previdenziale 2025
+            <input v-model.number="store.previousContributionIncome" type="number" min="0" class="tg-input block w-full mt-1 px-3 py-2 rounded-xl text-sm" />
+          </label>
+          <label class="text-xs text-gray-600 dark:text-gray-300">Contributi dovuti 2025
+            <input v-model.number="store.previousYearContributions" type="number" min="0" class="tg-input block w-full mt-1 px-3 py-2 rounded-xl text-sm" />
+          </label>
+          <label class="text-xs text-gray-600 dark:text-gray-300">Acconti INPS già versati
+            <input v-model.number="store.previousContributionAdvancesPaid" type="number" min="0" class="tg-input block w-full mt-1 px-3 py-2 rounded-xl text-sm" />
+          </label>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Metodo acconto fiscale</label>
+          <div class="flex flex-wrap gap-2">
+            <button @click="store.accontoMethod = 'storico'" :class="store.accontoMethod === 'storico' ? 'border-[#e2af0d] bg-[#e2af0d]/10 text-[#a97f00] dark:text-[#e2af0d]' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'" class="px-3 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer">Storico (imposta 2025)</button>
+            <button @click="store.accontoMethod = 'previsionale'" :class="store.accontoMethod === 'previsionale' ? 'border-[#e2af0d] bg-[#e2af0d]/10 text-[#a97f00] dark:text-[#e2af0d]' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'" class="px-3 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer">Previsionale (stima 2026)</button>
+          </div>
+        </div>
+        <div v-if="store.accontoMethod === 'previsionale'">
+          <label class="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 mb-2">
+            <input v-model="store.useCalculatedExpectedTax" type="checkbox" class="accent-[#e2af0d]" /> Usa imposta principale calcolata dal simulatore
+          </label>
+          <template v-if="!store.useCalculatedExpectedTax">
+            <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Imposta principale prevista {{ store.fiscalYear }}</label>
+            <input v-model.number="store.expectedTax" type="number" min="0" class="tg-input block w-full px-3 py-2 rounded-xl text-sm" />
+            <p class="text-[10px] text-gray-400 mt-1">Zero è una previsione valida. Metodo previsionale espone a sanzioni se sottostimato.</p>
+          </template>
+        </div>
+      </div>
+    </section>
 
     <!-- Timeline -->
     <div v-if="store.deadlines.length" class="relative">
@@ -141,18 +192,24 @@ const typeLabel: Record<string, string> = {
       </ol>
 
       <!-- Totale -->
-      <div class="mt-6 pt-4 border-t border-dashed border-gray-200 dark:border-gray-700 flex items-center justify-between">
-        <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">Totale versamenti stimati</span>
-        <span class="text-xl font-extrabold text-gray-900 dark:text-white">{{ formatCurrency(totalPayable) }}</span>
+      <div class="mt-6 pt-4 border-t border-dashed border-gray-200 dark:border-gray-700 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">Totale versamenti 2026</span>
+          <span class="text-xl font-extrabold text-gray-900 dark:text-white">{{ formatCurrency(total2026) }}</span>
+        </div>
+        <div v-if="total2027 > 0" class="flex items-center justify-between">
+          <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">Totale versamenti 2027 mostrati</span>
+          <span class="text-base font-bold text-gray-700 dark:text-gray-200">{{ formatCurrency(total2027) }}</span>
+        </div>
       </div>
     </div>
 
     <div v-else class="py-8 text-center text-gray-400 dark:text-gray-500">
-      Nessuna scadenza da mostrare con i parametri attuali.
+      {{ store.deadlineForecastComplete ? 'Nessuna scadenza da mostrare con gli importi indicati.' : 'Inserisci la data di apertura per generare la previsione.' }}
     </div>
 
     <p class="mt-5 text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
-      Stima orientativa basata sulle regole 2026: il calendario ufficiale di saldi e acconti può variare per fattispecie, rateazioni e proroghe. Non sostituisce la consulenza di un professionista.
+      Previsione basata sui dati storici inseriti e sulle regole 2026. Addizionali regionali/comunali escluse dal calendario: richiedono dati territoriali e dichiarativi specifici. Importi INPS Artigiani/Commercianti di prima iscrizione restano stime finché INPS non emette gli F24; rateazioni, casi speciali e ulteriori proroghe possono cambiare il calendario. Non sostituisce la consulenza di un professionista.
     </p>
   </div>
 </template>

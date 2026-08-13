@@ -83,6 +83,16 @@ export const useTaxStore = defineStore('taxStore', () => {
   const deadlineRegime = ref<DeadlineRegime>('forfettario')
   const accontoMethod = ref<AccontoMethod>('storico')
   const expectedTax = ref<number>(0)
+  const activityStartDate = ref('')
+  const previousYearTax = ref(0)
+  const previousTaxAdvanceBase = ref(0)
+  const previousTaxAdvancesPaid = ref(0)
+  const previousTaxCreditsWithholdings = ref(0)
+  const useCalculatedExpectedTax = ref(true)
+  const previousContributionIncome = ref(0)
+  const previousYearContributions = ref(0)
+  const previousContributionAdvancesPaid = ref(0)
+  const ordinaryIsaEligible = ref(false)
 
   const forfettarioCassa = ref<PrevidentialFund>('gestione_separata')
   const forfettarioStartup = ref(false)
@@ -429,28 +439,48 @@ export const useTaxStore = defineStore('taxStore', () => {
     }
   })
 
+  const deadlineForecastComplete = computed(() => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(activityStartDate.value)) return false
+    const date = new Date(`${activityStartDate.value}T00:00:00Z`)
+    return !Number.isNaN(date.getTime())
+      && date.toISOString().slice(0, 10) === activityStartDate.value
+      && activityStartDate.value <= '2026-12-31'
+  })
+  const safeAmount = (value: number) => Number.isFinite(value) ? Math.max(value, 0) : 0
+
   const deadlines = computed(() => {
+    if (!deadlineForecastComplete.value) return []
     const isForfettario = deadlineRegime.value === 'forfettario'
     const result = isForfettario ? forfettarioResult.value : ordinarioResult.value
     const contributionFund = isForfettario ? forfettarioCassa.value : ordinarioCassa.value
-    // Imposta annuale 2026: sostitutiva per il forfettario, IRPEF incrementale per l'ordinario.
-    const annualTax = Math.max(result.tasse, 0)
-    // Acconto storico: metà dell'imposta dell'anno precedente. In assenza di storico reale
-    // usiamo l'imposta corrente come proxy (primo anno di attività → 0).
-    const previousYearTax = isForfettario ? annualTax : annualTax
-    const addizionali = isForfettario
-      ? 0
-      : Math.max(ordinarioResult.value.baseTaxPosition.regionalTax + ordinarioResult.value.baseTaxPosition.municipalTax, 0)
+    const contributionRelief = isForfettario ? forfettarioContributionRelief.value : ordinarioContributionRelief.value
+    const annualMainTax = isForfettario
+      ? safeAmount(forfettarioResult.value.tasse)
+      : safeAmount(
+          ordinarioResult.value.combinedTaxPosition.netIrpef
+          - ordinarioResult.value.baseTaxPosition.netIrpef
+          - (ordinarioResult.value.combinedTaxPosition.trattamentoIntegrativo - ordinarioResult.value.baseTaxPosition.trattamentoIntegrativo),
+        )
     return buildDeadlines({
       regime: deadlineRegime.value,
-      annualTax,
-      previousYearTax,
-      expectedTax: Math.max(expectedTax.value, 0),
+      activityStartDate: activityStartDate.value,
+      ordinaryIsaEligible: !isForfettario && ordinaryIsaEligible.value,
+      annualTax: annualMainTax,
+      previousYearTax: safeAmount(previousYearTax.value),
+      previousTaxAdvanceBase: safeAmount(previousTaxAdvanceBase.value),
+      previousTaxAdvancesPaid: safeAmount(previousTaxAdvancesPaid.value),
+      previousTaxCreditsWithholdings: safeAmount(previousTaxCreditsWithholdings.value),
+      expectedTax: safeAmount(expectedTax.value),
+      useCalculatedExpectedTax: useCalculatedExpectedTax.value,
       accontoMethod: accontoMethod.value,
-      contributionAmount: result.inps,
+      contributionAmount: safeAmount(result.inps),
       contributionFund,
-      regionalTax: addizionali,
-      municipalTax: 0,
+      contributionRelief,
+      hasOtherCoverage: hasJob.value,
+      maximumContributionIncome: safeAmount(contributionCap.value),
+      previousContributionIncome: safeAmount(previousContributionIncome.value),
+      previousYearContributions: safeAmount(previousYearContributions.value),
+      previousContributionAdvancesPaid: safeAmount(previousContributionAdvancesPaid.value),
     })
   })
 
@@ -516,6 +546,16 @@ export const useTaxStore = defineStore('taxStore', () => {
     deadlineRegime: deadlineRegime.value,
     accontoMethod: accontoMethod.value,
     expectedTax: expectedTax.value,
+    activityStartDate: activityStartDate.value,
+    previousYearTax: previousYearTax.value,
+    previousTaxAdvanceBase: previousTaxAdvanceBase.value,
+    previousTaxAdvancesPaid: previousTaxAdvancesPaid.value,
+    previousTaxCreditsWithholdings: previousTaxCreditsWithholdings.value,
+    useCalculatedExpectedTax: useCalculatedExpectedTax.value,
+    previousContributionIncome: previousContributionIncome.value,
+    previousYearContributions: previousYearContributions.value,
+    previousContributionAdvancesPaid: previousContributionAdvancesPaid.value,
+    ordinaryIsaEligible: ordinaryIsaEligible.value,
   })
 
   const applyState = (parsed: Record<string, unknown>) => {
@@ -567,7 +607,17 @@ export const useTaxStore = defineStore('taxStore', () => {
     }
     deadlineRegime.value = parsed.deadlineRegime === 'ordinario' ? 'ordinario' : 'forfettario'
     accontoMethod.value = parsed.accontoMethod === 'previsionale' ? 'previsionale' : 'storico'
-    expectedTax.value = Number(parsed.expectedTax ?? 0)
+    expectedTax.value = safeAmount(Number(parsed.expectedTax ?? 0))
+    activityStartDate.value = typeof parsed.activityStartDate === 'string' ? parsed.activityStartDate : ''
+    previousYearTax.value = safeAmount(Number(parsed.previousYearTax ?? 0))
+    previousTaxAdvanceBase.value = safeAmount(Number(parsed.previousTaxAdvanceBase ?? parsed.previousYearTax ?? 0))
+    previousTaxAdvancesPaid.value = safeAmount(Number(parsed.previousTaxAdvancesPaid ?? 0))
+    previousTaxCreditsWithholdings.value = safeAmount(Number(parsed.previousTaxCreditsWithholdings ?? 0))
+    useCalculatedExpectedTax.value = Boolean(parsed.useCalculatedExpectedTax ?? true)
+    previousContributionIncome.value = safeAmount(Number(parsed.previousContributionIncome ?? 0))
+    previousYearContributions.value = safeAmount(Number(parsed.previousYearContributions ?? 0))
+    previousContributionAdvancesPaid.value = safeAmount(Number(parsed.previousContributionAdvancesPaid ?? 0))
+    ordinaryIsaEligible.value = Boolean(parsed.ordinaryIsaEligible ?? false)
   }
 
   const loadState = () => {
@@ -583,7 +633,7 @@ export const useTaxStore = defineStore('taxStore', () => {
     if (!encoded) return
     try {
       const parsed = JSON.parse(atob(encoded)) as Record<string, unknown>
-      if (parsed.v === 2) {
+      if ([2, 3, 4].includes(Number(parsed.v))) {
         applyState({
           fiscalYear: parsed.y,
           fatturato: parsed.f,
@@ -617,6 +667,18 @@ export const useTaxStore = defineStore('taxStore', () => {
           deadlineRegime: parsed.dr,
           accontoMethod: parsed.am2,
           expectedTax: parsed.et,
+          activityStartDate: parsed.od,
+          previousYearTax: parsed.pyt,
+          previousTaxAdvanceBase: parsed.pab,
+          previousTaxAdvancesPaid: parsed.pta,
+          previousTaxCreditsWithholdings: parsed.ptc,
+          useCalculatedExpectedTax: Number(parsed.v) < 4
+            ? !(Number(parsed.et) > 0)
+            : parsed.uce,
+          previousContributionIncome: parsed.pci,
+          previousYearContributions: parsed.pyc,
+          previousContributionAdvancesPaid: parsed.pca,
+          ordinaryIsaEligible: parsed.oi,
         })
       } else {
         applyState(parsed)
@@ -637,7 +699,7 @@ export const useTaxStore = defineStore('taxStore', () => {
     url.search = ''
     const state = stateSnapshot()
     const compactState = {
-      v: 3, y: state.fiscalYear, f: state.fatturato, m: state.inputMode, a: state.advancedMode,
+      v: 4, y: state.fiscalYear, f: state.fatturato, m: state.inputMode, a: state.advancedMode,
       cr: state.costiOperativiReali, cf: state.costiFiscalmenteDeducibili, d: state.speseDetraibili,
       ac: state.atecoCategory, ax: state.atecoCoef, mm: state.mesiParagone,
       h: state.hasLavoroDipendente, r: state.ralDipendente, rp: state.redditoDipendentePrecedente,
@@ -647,6 +709,11 @@ export const useTaxStore = defineStore('taxStore', () => {
       fr: state.forfettarioContributionRelief, oc: state.ordinarioCassa, or: state.ordinarioContributionRelief,
       vf: state.showForfettario, vo: state.showOrdinario, vd: state.showDipendente, co: state.cardOrder,
       dr: state.deadlineRegime, am2: state.accontoMethod, et: state.expectedTax,
+      od: state.activityStartDate, pyt: state.previousYearTax, pab: state.previousTaxAdvanceBase,
+      pta: state.previousTaxAdvancesPaid, ptc: state.previousTaxCreditsWithholdings,
+      uce: state.useCalculatedExpectedTax, pci: state.previousContributionIncome,
+      pyc: state.previousYearContributions, pca: state.previousContributionAdvancesPaid,
+      oi: state.ordinaryIsaEligible,
     }
     url.searchParams.set('data', btoa(JSON.stringify(compactState)))
     return url.toString()
@@ -687,9 +754,20 @@ export const useTaxStore = defineStore('taxStore', () => {
     forfettarioStatus,
     validationIssues,
     deadlines,
+    deadlineForecastComplete,
     deadlineRegime,
     accontoMethod,
     expectedTax,
+    activityStartDate,
+    previousYearTax,
+    previousTaxAdvanceBase,
+    previousTaxAdvancesPaid,
+    previousTaxCreditsWithholdings,
+    useCalculatedExpectedTax,
+    previousContributionIncome,
+    previousYearContributions,
+    previousContributionAdvancesPaid,
+    ordinaryIsaEligible,
     mesiParagone,
     hasLavoroDipendente,
     ralDipendente,

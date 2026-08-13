@@ -1,4 +1,6 @@
-import type { PrevidentialFund } from '../fiscal-rules'
+import { FISCAL_RULES_2026 } from '../fiscal-rules'
+import type { ContributionRelief, PrevidentialFund } from '../fiscal-rules'
+import { calculateBusinessContributions } from './contributions'
 
 export type DeadlineRegime = 'forfettario' | 'ordinario'
 export type AccontoMethod = 'storico' | 'previsionale'
@@ -14,167 +16,216 @@ export interface TaxDeadline {
 
 export interface DeadlineInput {
   regime: DeadlineRegime
-  /** Imposta (sostitutiva o IRPEF incrementale) stimata per il 2026. */
+  activityStartDate: string
+  ordinaryIsaEligible: boolean
+  /** Imposta 2026 stimata, incluse eventuali addizionali del risultato annuale. */
   annualTax: number
-  /** Imposta/saldo dovuto per l'anno precedente (2025). */
+  /** Imposta netta dovuta per il 2025, prima degli acconti già versati. */
   previousYearTax: number
-  /** Base imposta prevista per il 2026, usata con metodo previsionale. */
+  /** Importo della dichiarazione 2025 usato specificamente come base acconti. */
+  previousTaxAdvanceBase: number
+  previousTaxAdvancesPaid: number
+  previousTaxCreditsWithholdings: number
   expectedTax: number
+  useCalculatedExpectedTax: boolean
   accontoMethod: AccontoMethod
-  /** Contributi INPS annui stimati dal regime. */
+  /** Contributi 2026 stimati dal simulatore. */
   contributionAmount: number
   contributionFund: PrevidentialFund
-  /** Addizionali regionali + comunali incrementali annue (solo ordinario). */
-  regionalTax: number
-  municipalTax: number
+  contributionRelief: ContributionRelief
+  hasOtherCoverage: boolean
+  maximumContributionIncome?: number
+  previousContributionIncome: number
+  previousYearContributions: number
+  previousContributionAdvancesPaid: number
 }
 
-const MONTHLY_DEADLINE_FIRST = '2026-06-30'
-const MONTHLY_DEADLINE_SECOND = '2026-11-30'
-const SALDO_2026 = '2027-06-30'
-const BUSINESS_ACCONTO = '2026-05-18' // 16/05/2026 è sabato
-const ADDIZIONALI_ACCONTO = '2026-11-30'
-const ADDIZIONALI_SALDO = '2027-06-30'
+const STANDARD_FIRST_DEADLINE = '2026-06-30'
+const DEFERRED_FIRST_DEADLINE = '2026-07-20'
+const SECOND_DEADLINE = '2026-11-30'
+const NEXT_YEAR_BALANCE = '2027-06-30'
+const BUSINESS_FIXED_DATES = ['2026-05-18', '2026-08-20', '2026-11-17', '2027-02-16'] as const
 
 const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100
+const nonNegative = (value: number) => Number.isFinite(value) ? Math.max(value, 0) : 0
 
-/**
- * Calcola il calendario di cassa (saldo + acconti) per un regime P.IVA nel 2026.
- *
- * Modello dettagliato semplificato:
- * - Imposta (sostitutiva forfettario / IRPEF ordinario): saldo anno precedente entro
- *   30/06/2026, 1° acconto (50%) entro 30/06/2026, 2° acconto (50%) entro 30/11/2026,
- *   saldo 2026 entro 30/06/2027 al netto degli acconti.
- * - Metodo acconto: storico (base = imposta 2025) o previsionale (base = imposta
- *   prevista 2026, con override).
- * - INPS Gestione Separata: 2 rate 50/50 (30/06 e 30/11).
- * - INPS Artigiani/Commercianti: acconto 40% (16/05 → 18/05 per festività), saldo 30/06
- *   e 2° acconto 30/11 (ripartizione semplificata; la prassi prevede 4 rate).
- * - Addizionali regionali/comunali (solo ordinario): acconto 30% entro 30/11/2026,
- *   saldo 70% entro 30/06/2027.
- *
- * Gli importi sono stime orientative, non sostituiscono il calendario ufficiale.
- */
+const parseActivityStart = (value: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  const date = new Date(`${value}T00:00:00Z`)
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value ? null : date
+}
+
+const reliefMultiplier = (relief: ContributionRelief) => {
+  if (relief === 'forfettario_35') return FISCAL_RULES_2026.inps.relief.forfettario35Multiplier
+  if (relief === 'pensioner_50' || relief === 'new_entrant_2025_50') return FISCAL_RULES_2026.inps.relief.fiftyPercentMultiplier
+  return 1
+}
+
+const activeMonthsIn2026 = (opening: Date) => {
+  if (opening.getUTCFullYear() < 2026) return 12
+  if (opening.getUTCFullYear() > 2026) return 0
+  return 12 - opening.getUTCMonth()
+}
+
+function taxAdvanceSplit(base: number, isaStyle: boolean) {
+  const normalized = nonNegative(base)
+  if (normalized <= 51.65) return { first: 0, second: 0 }
+  const soleThreshold = isaStyle ? 206 : 257.52
+  if ((isaStyle && normalized <= soleThreshold) || (!isaStyle && normalized < soleThreshold)) {
+    return { first: 0, second: roundMoney(normalized) }
+  }
+  const firstRate = isaStyle ? 0.5 : 0.4
+  const first = roundMoney(normalized * firstRate)
+  return { first, second: roundMoney(normalized - first) }
+}
+
+/** Build statutory cash deadlines from explicit prior-year facts and current projections. */
 export function buildDeadlines(input: DeadlineInput): TaxDeadline[] {
+  const opening = parseActivityStart(input.activityStartDate)
+  if (!opening || opening > new Date('2026-12-31T00:00:00Z')) return []
+
   const events: TaxDeadline[] = []
-  const annualTax = Math.max(input.annualTax, 0)
-  const previousYearTax = Math.max(input.previousYearTax, 0)
-  const expectedTax = Math.max(input.expectedTax, 0)
-  const contributions = Math.max(input.contributionAmount, 0)
+  const firstYear = opening.getUTCFullYear() === 2026
+  const firstDeadline = input.regime === 'forfettario' || input.ordinaryIsaEligible
+    ? DEFERRED_FIRST_DEADLINE
+    : STANDARD_FIRST_DEADLINE
+  const annualTax = nonNegative(input.annualTax)
+  const priorTax = firstYear ? 0 : nonNegative(input.previousYearTax)
+  const priorTaxBalance = firstYear ? 0 : roundMoney(Math.max(
+    priorTax - nonNegative(input.previousTaxAdvancesPaid) - nonNegative(input.previousTaxCreditsWithholdings),
+    0,
+  ))
 
-  const accontoBase = input.accontoMethod === 'previsionale'
-    ? (expectedTax > 0 ? expectedTax : annualTax)
-    : previousYearTax
-  const firstAcconto = roundMoney(accontoBase / 2)
-  const secondAcconto = roundMoney(accontoBase / 2)
-
-  // Saldo anno precedente
-  if (previousYearTax > 0) {
+  if (priorTaxBalance > 0) {
     events.push({
-      date: MONTHLY_DEADLINE_FIRST,
+      date: firstDeadline,
       label: 'Saldo imposta 2025',
-      amount: previousYearTax,
+      amount: priorTaxBalance,
       type: 'saldo',
-      detail: 'Imposta dovuta per l’anno precedente, in acconto a giugno.',
+      detail: 'Imposta 2025 al netto di acconti, crediti e ritenute indicati.',
     })
   }
 
-  // 1° acconto imposta
-  if (firstAcconto > 0) {
+  const advanceBase = firstYear
+    ? 0
+    : input.accontoMethod === 'previsionale'
+      ? (input.useCalculatedExpectedTax ? annualTax : nonNegative(input.expectedTax))
+      : nonNegative(input.previousTaxAdvanceBase)
+  const taxAdvances = taxAdvanceSplit(advanceBase, input.regime === 'forfettario' || input.ordinaryIsaEligible)
+
+  if (taxAdvances.first > 0) {
     events.push({
-      date: MONTHLY_DEADLINE_FIRST,
-      label: `1° acconto imposta 2026 (${input.accontoMethod === 'previsionale' ? 'previsionale' : 'storico'})`,
-      amount: firstAcconto,
+      date: firstDeadline,
+      label: `1° acconto imposta 2026 (${input.accontoMethod})`,
+      amount: taxAdvances.first,
       type: 'acconto',
-      detail: input.accontoMethod === 'previsionale'
-        ? 'Metodo previsionale: metà dell’imposta che prevedi di dovere per il 2026.'
-        : 'Metodo storico: metà dell’acconto, pari al 100% dell’imposta 2025.',
+      detail: input.regime === 'forfettario' || input.ordinaryIsaEligible
+        ? 'Prima rata del 50% secondo regole forfettario/ISA.'
+        : 'Prima rata del 40% secondo regole ordinarie non ISA.',
     })
   }
-
-  // 2° acconto imposta
-  if (secondAcconto > 0) {
+  if (taxAdvances.second > 0) {
     events.push({
-      date: MONTHLY_DEADLINE_SECOND,
-      label: '2° acconto imposta 2026',
-      amount: secondAcconto,
+      date: SECOND_DEADLINE,
+      label: taxAdvances.first > 0 ? '2° acconto imposta 2026' : 'Acconto imposta 2026 in unica soluzione',
+      amount: taxAdvances.second,
       type: 'acconto',
-      detail: 'Seconda rata dell’acconto imposta 2026.',
+      detail: taxAdvances.first > 0 ? 'Seconda rata dell’acconto 2026.' : 'Importo sotto la soglia prevista per la rateazione in due scadenze.',
     })
   }
 
-  // Contributi previdenziali
-  if (contributions > 0) {
-    if (input.contributionFund === 'gestione_separata') {
-      events.push({
-        date: MONTHLY_DEADLINE_FIRST,
-        label: 'INPS Gestione Separata — 1° rata (50%)',
-        amount: roundMoney(contributions / 2),
+  const priorContributionBalance = firstYear ? 0 : roundMoney(Math.max(
+    nonNegative(input.previousYearContributions) - nonNegative(input.previousContributionAdvancesPaid),
+    0,
+  ))
+  if (priorContributionBalance > 0) {
+    events.push({
+      date: firstDeadline,
+      label: 'Saldo contributi INPS 2025',
+      amount: priorContributionBalance,
+      type: 'contributi',
+      detail: 'Contributi 2025 dovuti al netto degli acconti già versati.',
+    })
+  }
+
+  const projectedContributions = nonNegative(input.contributionAmount)
+  let contributionAdvances = 0
+  let fixedContributions = 0
+
+  if (input.contributionFund === 'gestione_separata') {
+    if (!firstYear) {
+      const rules = FISCAL_RULES_2026.inps.gestioneSeparata
+      const rate = input.hasOtherCoverage ? rules.professional.otherCoverageRate : rules.professional.standardRate
+      const maximum = nonNegative(input.maximumContributionIncome ?? rules.maximumIncome)
+      contributionAdvances = roundMoney(Math.min(nonNegative(input.previousContributionIncome) * 0.8, maximum) * rate)
+      const first = roundMoney(contributionAdvances / 2)
+      const second = roundMoney(contributionAdvances - first)
+      if (first > 0) events.push({ date: firstDeadline, label: 'INPS Gestione Separata — 1° acconto', amount: first, type: 'contributi', detail: '50% dell’acconto calcolato con aliquota 2026 sull’80% del reddito previdenziale 2025.' })
+      if (second > 0) events.push({ date: SECOND_DEADLINE, label: 'INPS Gestione Separata — 2° acconto', amount: second, type: 'contributi', detail: 'Seconda metà dell’acconto contributivo 2026.' })
+    }
+  } else if (projectedContributions > 0) {
+    const rules = FISCAL_RULES_2026.inps.business[input.contributionFund]
+    const multiplier = reliefMultiplier(input.contributionRelief)
+    const fullFixed = roundMoney(rules.minimumContribution * multiplier)
+    fixedContributions = roundMoney(fullFixed * activeMonthsIn2026(opening) / 12)
+    const openingIso = input.activityStartDate
+    const paymentDates = firstYear
+      ? BUSINESS_FIXED_DATES.filter((date) => date >= openingIso)
+      : [...BUSINESS_FIXED_DATES]
+    const installment = roundMoney(fixedContributions / paymentDates.length)
+    paymentDates.forEach((date, index) => {
+      const amount = index === paymentDates.length - 1
+        ? roundMoney(fixedContributions - installment * (paymentDates.length - 1))
+        : installment
+      if (amount > 0) events.push({
+        date,
+        label: `INPS ${input.contributionFund === 'artigiani' ? 'Artigiani' : 'Commercianti'} — minimale rata ${index + 1}/${paymentDates.length}`,
+        amount,
         type: 'contributi',
-        detail: 'Prima rata annuale dei contributi professionisti.',
+        detail: firstYear
+          ? `Minimale riproporzionato a ${activeMonthsIn2026(opening)} mesi e distribuito sulle scadenze successive all’apertura; verifica gli F24 emessi da INPS.`
+          : 'Rata trimestrale del contributo minimale 2026.',
       })
-      events.push({
-        date: MONTHLY_DEADLINE_SECOND,
-        label: 'INPS Gestione Separata — 2° rata (50%)',
-        amount: roundMoney(contributions / 2),
-        type: 'contributi',
-        detail: 'Seconda rata annuale dei contributi professionisti.',
+    })
+
+    if (!firstYear) {
+      const priorIncomeContribution = calculateBusinessContributions({
+        income: nonNegative(input.previousContributionIncome),
+        fund: input.contributionFund,
+        relief: input.contributionRelief,
+        maximumIncomeOverride: input.maximumContributionIncome,
       })
-    } else {
-      events.push({
-        date: BUSINESS_ACCONTO,
-        label: 'INPS Artigiani/Commercianti — acconto (40%)',
-        amount: roundMoney(contributions * 0.4),
-        type: 'contributi',
-        detail: 'Acconto contributivo dovuto entro il 16/05 (spostato al 18/05 per il weekend).',
-      })
-      events.push({
-        date: MONTHLY_DEADLINE_FIRST,
-        label: 'INPS Artigiani/Commercianti — saldo (30%)',
-        amount: roundMoney(contributions * 0.3),
-        type: 'contributi',
-        detail: 'Primo saldo annuale dei contributi.',
-      })
-      events.push({
-        date: MONTHLY_DEADLINE_SECOND,
-        label: 'INPS Artigiani/Commercianti — 2° saldo (30%)',
-        amount: roundMoney(contributions * 0.3),
-        type: 'contributi',
-        detail: 'Ripartizione semplificata: la prassi prevede 4 rate (maggio, giugno, settembre, novembre).',
-      })
+      contributionAdvances = roundMoney(Math.max(priorIncomeContribution.total - fullFixed, 0))
+      const first = roundMoney(contributionAdvances / 2)
+      const second = roundMoney(contributionAdvances - first)
+      if (first > 0) events.push({ date: firstDeadline, label: 'INPS eccedenza minimale — 1° acconto', amount: first, type: 'contributi', detail: 'Prima metà dell’acconto sull’eccedenza, calcolato dal reddito previdenziale 2025.' })
+      if (second > 0) events.push({ date: SECOND_DEADLINE, label: 'INPS eccedenza minimale — 2° acconto', amount: second, type: 'contributi', detail: 'Seconda metà dell’acconto sull’eccedenza.' })
     }
   }
 
-  // Addizionali regionali/comunali (solo ordinario, quando configurate)
-  const addizionali = Math.max(input.regionalTax + input.municipalTax, 0)
-  if (input.regime === 'ordinario' && addizionali > 0) {
-    events.push({
-      date: ADDIZIONALI_ACCONTO,
-      label: 'Addizionali regionali/comunali — acconto (30%)',
-      amount: roundMoney(addizionali * 0.3),
-      type: 'addizionali',
-      detail: 'Acconto delle addizionali locali sul reddito 2026.',
-    })
-    events.push({
-      date: ADDIZIONALI_SALDO,
-      label: 'Addizionali regionali/comunali — saldo (70%)',
-      amount: roundMoney(addizionali * 0.7),
-      type: 'addizionali',
-      detail: 'Saldo delle addizionali locali, dovuto a giugno 2027.',
-    })
-  }
+  const taxBalance2026 = roundMoney(Math.max(annualTax - taxAdvances.first - taxAdvances.second, 0))
+  if (taxBalance2026 > 0) events.push({
+    date: NEXT_YEAR_BALANCE,
+    label: 'Saldo imposta 2026 (a conguaglio)',
+    amount: taxBalance2026,
+    type: 'saldo',
+    detail: 'Imposta annuale stimata, incluse addizionali, al netto degli acconti 2026.',
+  })
 
-  // Saldo 2026 (a conguaglio, al netto degli acconti versati)
-  const saldo2026 = roundMoney(Math.max(annualTax - firstAcconto - secondAcconto, 0))
-  if (saldo2026 > 0) {
-    events.push({
-      date: SALDO_2026,
-      label: 'Saldo imposta 2026 (a conguaglio)',
-      amount: saldo2026,
-      type: 'saldo',
-      detail: 'Differenza tra imposta 2026 e acconti già versati nel corso dell’anno.',
-    })
-  }
+  const fullFixedForFund = input.contributionFund === 'gestione_separata'
+    ? 0
+    : FISCAL_RULES_2026.inps.business[input.contributionFund].minimumContribution * reliefMultiplier(input.contributionRelief)
+  const projectedContributionLiability = input.contributionFund === 'gestione_separata'
+    ? projectedContributions
+    : Math.max(projectedContributions - fullFixedForFund + fixedContributions, 0)
+  const contributionBalance2026 = roundMoney(Math.max(projectedContributionLiability - fixedContributions - contributionAdvances, 0))
+  if (contributionBalance2026 > 0) events.push({
+    date: NEXT_YEAR_BALANCE,
+    label: 'Saldo contributi INPS 2026 (stimato)',
+    amount: contributionBalance2026,
+    type: 'contributi',
+    detail: 'Contributi 2026 stimati al netto di minimale e acconti pagati nel 2026.',
+  })
 
   return events.sort((a, b) => a.date.localeCompare(b.date))
 }

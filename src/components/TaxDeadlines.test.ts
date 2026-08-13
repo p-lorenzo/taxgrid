@@ -22,21 +22,35 @@ describe('TaxDeadlines Component', () => {
     setActivePinia(createPinia())
   })
 
-  it('renders title and regime selector', () => {
+  it('renders required forecast facts and incomplete warning', () => {
     const wrapper = mount(TaxDeadlines)
     expect(wrapper.text()).toContain('Scadenze Fiscali')
-    expect(wrapper.text()).toContain('Forfettario')
-    expect(wrapper.text()).toContain('Ordinario')
+    expect(wrapper.text()).toContain('Dati necessari')
+    expect(wrapper.text()).toContain('Data apertura obbligatoria')
+    expect(wrapper.find('#activity-start-date').attributes('required')).toBeDefined()
+    expect(wrapper.text()).toContain('Inserisci la data di apertura')
   })
 
-  it('renders timeline events from the store', () => {
+  it('renders historical fields and timeline after opening date is entered', async () => {
     const store = useTaxStore()
-    store.deadlineRegime = 'forfettario'
-    store.accontoMethod = 'storico'
+    store.activityStartDate = '2024-01-01'
+    store.previousYearTax = 5_000
     const wrapper = mount(TaxDeadlines)
-    // Timeline: almeno un evento + totale
+    await wrapper.vm.$nextTick()
+    expect(wrapper.text()).toContain('Imposta netta dovuta 2025')
+    expect(wrapper.text()).toContain('Reddito previdenziale 2025')
+    expect(wrapper.findAll('input[type="number"]').length).toBeGreaterThanOrEqual(6)
     expect(wrapper.findAll('li').length).toBeGreaterThan(0)
-    expect(wrapper.text()).toContain('Totale versamenti stimati')
+    expect(wrapper.text()).toContain('Totale versamenti 2026')
+  })
+
+  it('hides historical fields for a 2026 opening and explains first-year rules', async () => {
+    const store = useTaxStore()
+    store.activityStartDate = '2026-07-01'
+    const wrapper = mount(TaxDeadlines)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.text()).toContain('Prima attività nel 2026')
+    expect(wrapper.text()).not.toContain('Imposta netta dovuta 2025')
   })
 
   it('switches regime selector to ordinario', async () => {
@@ -46,5 +60,7 @@ describe('TaxDeadlines Component', () => {
     const ordinarioBtn = buttons.find((b) => b.text() === 'Ordinario')
     await ordinarioBtn!.trigger('click')
     expect(store.deadlineRegime).toBe('ordinario')
+    expect(wrapper.text()).toContain('Soggetto ISA / proroga 2026')
+    expect(wrapper.find('input[type="checkbox"]').exists()).toBe(true)
   })
 })
