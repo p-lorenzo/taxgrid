@@ -41,7 +41,11 @@ describe('TaxDeadlines Component', () => {
     expect(wrapper.text()).toContain('Reddito previdenziale 2025')
     expect(wrapper.findAll('input[type="number"]').length).toBeGreaterThanOrEqual(6)
     expect(wrapper.findAll('li').length).toBeGreaterThan(0)
+    expect(wrapper.text()).toContain('Modello Redditi PF 2026')
+    expect(wrapper.text()).toContain('Modello Redditi PF 2027')
+    expect(wrapper.text()).toContain('Invio telematico')
     expect(wrapper.text()).toContain('Totale versamenti 2026')
+    expect(wrapper.text()).toContain('Totale versamenti 2027')
   })
 
   it('hides historical fields for a 2026 opening and explains first-year rules', async () => {
@@ -51,6 +55,8 @@ describe('TaxDeadlines Component', () => {
     await wrapper.vm.$nextTick()
     expect(wrapper.text()).toContain('Prima attività nel 2026')
     expect(wrapper.text()).not.toContain('Imposta netta dovuta 2025')
+    expect(wrapper.text()).not.toContain('Modello Redditi PF 2026')
+    expect(wrapper.text()).toContain('Modello Redditi PF 2027')
   })
 
   it('switches regime selector to ordinario', async () => {

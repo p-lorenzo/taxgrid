@@ -13,9 +13,10 @@ const formatDate = (iso: string) => {
   return new Date(y, m - 1, d).toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' })
 }
 
-const total2026 = computed(() => store.deadlines.filter((event) => event.date.startsWith('2026-')).reduce((sum, event) => sum + event.amount, 0))
-const total2027 = computed(() => store.deadlines.filter((event) => event.date.startsWith('2027-')).reduce((sum, event) => sum + event.amount, 0))
-const startsIn2026 = computed(() => store.deadlineForecastComplete && store.activityStartDate.startsWith('2026-'))
+const nextFiscalYear = computed(() => store.fiscalYear + 1)
+const totalCurrentYear = computed(() => store.deadlines.filter((event) => event.date.startsWith(`${store.fiscalYear}-`)).reduce((sum, event) => sum + event.amount, 0))
+const totalNextYear = computed(() => store.deadlines.filter((event) => event.date.startsWith(`${nextFiscalYear.value}-`)).reduce((sum, event) => sum + event.amount, 0))
+const startsIn2026 = computed(() => store.deadlineForecastComplete && store.activityStartDate.startsWith(`${store.fiscalYear}-`))
 const hasPriorData = computed(() => [
   store.previousYearTax,
   store.previousTaxAdvanceBase,
@@ -30,14 +31,14 @@ const typeStyles: Record<string, { badge: string; dot: string; line: string }> =
   saldo: { badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300', dot: 'bg-blue-500', line: 'bg-blue-500/40' },
   acconto: { badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300', dot: 'bg-amber-500', line: 'bg-amber-500/40' },
   contributi: { badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300', dot: 'bg-emerald-500', line: 'bg-emerald-500/40' },
-  addizionali: { badge: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300', dot: 'bg-purple-500', line: 'bg-purple-500/40' },
+  adempimento: { badge: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300', dot: 'bg-purple-500', line: 'bg-purple-500/40' },
 }
 
 const typeLabel: Record<string, string> = {
   saldo: 'Saldo',
   acconto: 'Acconto',
   contributi: 'Contributi',
-  addizionali: 'Addizionali',
+  adempimento: 'Adempimento',
 }
 </script>
 
@@ -52,9 +53,9 @@ const typeLabel: Record<string, string> = {
           </svg>
         </span>
         <div>
-          <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Scadenze Fiscali {{ store.fiscalYear }}</h2>
+          <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Scadenze Fiscali {{ store.fiscalYear }}–{{ nextFiscalYear }}</h2>
           <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            Calendario di cassa stimato per imposta principale e contributi del regime selezionato.
+            Tutti i saldi, acconti, contributi e Modelli Redditi dall’inizio dell’anno simulato alla fine del successivo.
           </p>
         </div>
       </div>
@@ -103,7 +104,7 @@ const typeLabel: Record<string, string> = {
       </div>
 
       <div v-if="startsIn2026" class="mt-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
-        Prima attività nel 2026: saldo 2025 e acconti storici fiscali/INPS azzerati. Gestione Separata sarà versata dal saldo 2027; minimale Artigiani/Commercianti riproporzionato ai mesi attivi.
+        Prima attività nel {{ store.fiscalYear }}: nessun saldo o acconto storico. Saldo e acconti fiscali/INPS generati nell’anno successivo dai risultati simulati.
       </div>
 
       <div v-else-if="store.deadlineForecastComplete" class="mt-4">
@@ -183,7 +184,8 @@ const typeLabel: Record<string, string> = {
                   {{ typeLabel[event.type] }}
                 </span>
               </div>
-              <span class="font-extrabold text-[#e2af0d] text-base">{{ formatCurrency(event.amount) }}</span>
+              <span v-if="event.type !== 'adempimento'" class="font-extrabold text-[#e2af0d] text-base">{{ formatCurrency(event.amount) }}</span>
+              <span v-else class="text-[10px] font-bold uppercase tracking-wide text-purple-600 dark:text-purple-300">Invio telematico</span>
             </div>
             <p class="text-xs font-semibold text-gray-700 dark:text-gray-300 mt-1.5">{{ event.label }}</p>
             <p v-if="event.detail" class="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">{{ event.detail }}</p>
@@ -194,12 +196,12 @@ const typeLabel: Record<string, string> = {
       <!-- Totale -->
       <div class="mt-6 pt-4 border-t border-dashed border-gray-200 dark:border-gray-700 space-y-2">
         <div class="flex items-center justify-between">
-          <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">Totale versamenti 2026</span>
-          <span class="text-xl font-extrabold text-gray-900 dark:text-white">{{ formatCurrency(total2026) }}</span>
+          <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">Totale versamenti {{ store.fiscalYear }}</span>
+          <span class="text-xl font-extrabold text-gray-900 dark:text-white">{{ formatCurrency(totalCurrentYear) }}</span>
         </div>
-        <div v-if="total2027 > 0" class="flex items-center justify-between">
-          <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">Totale versamenti 2027 mostrati</span>
-          <span class="text-base font-bold text-gray-700 dark:text-gray-200">{{ formatCurrency(total2027) }}</span>
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">Totale versamenti {{ nextFiscalYear }}</span>
+          <span class="text-base font-bold text-gray-700 dark:text-gray-200">{{ formatCurrency(totalNextYear) }}</span>
         </div>
       </div>
     </div>
@@ -209,7 +211,7 @@ const typeLabel: Record<string, string> = {
     </div>
 
     <p class="mt-5 text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
-      Previsione basata sui dati storici inseriti e sulle regole 2026. Addizionali regionali/comunali escluse dal calendario: richiedono dati territoriali e dichiarativi specifici. Importi INPS Artigiani/Commercianti di prima iscrizione restano stime finché INPS non emette gli F24; rateazioni, casi speciali e ulteriori proroghe possono cambiare il calendario. Non sostituisce la consulenza di un professionista.
+      Orizzonte: 1 gennaio {{ store.fiscalYear }}–31 dicembre {{ nextFiscalYear }}. Scadenze e importi dell’anno successivo sono stime a normativa invariata. Addizionali regionali/comunali e adempimenti diversi dal Modello Redditi esclusi. Importi INPS di prima iscrizione restano stime finché INPS non emette gli F24; rateazioni, casi speciali e proroghe possono cambiare il calendario. Non sostituisce la consulenza di un professionista.
     </p>
   </div>
 </template>

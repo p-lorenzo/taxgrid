@@ -4,7 +4,7 @@ import { calculateBusinessContributions } from './contributions'
 
 export type DeadlineRegime = 'forfettario' | 'ordinario'
 export type AccontoMethod = 'storico' | 'previsionale'
-export type DeadlineType = 'saldo' | 'acconto' | 'contributi' | 'addizionali'
+export type DeadlineType = 'saldo' | 'acconto' | 'contributi' | 'adempimento'
 
 export interface TaxDeadline {
   date: string
@@ -18,7 +18,7 @@ export interface DeadlineInput {
   regime: DeadlineRegime
   activityStartDate: string
   ordinaryIsaEligible: boolean
-  /** Imposta 2026 stimata, incluse eventuali addizionali del risultato annuale. */
+  /** Imposta principale 2026 stimata; addizionali escluse. */
   annualTax: number
   /** Imposta netta dovuta per il 2025, prima degli acconti già versati. */
   previousYearTax: number
@@ -31,6 +31,8 @@ export interface DeadlineInput {
   accontoMethod: AccontoMethod
   /** Contributi 2026 stimati dal simulatore. */
   contributionAmount: number
+  /** Reddito previdenziale 2026 usato per stimare gli acconti INPS 2027. */
+  currentContributionIncome?: number
   contributionFund: PrevidentialFund
   contributionRelief: ContributionRelief
   hasOtherCoverage: boolean
@@ -44,7 +46,11 @@ const STANDARD_FIRST_DEADLINE = '2026-06-30'
 const DEFERRED_FIRST_DEADLINE = '2026-07-20'
 const SECOND_DEADLINE = '2026-11-30'
 const NEXT_YEAR_BALANCE = '2027-06-30'
+const NEXT_YEAR_SECOND_DEADLINE = '2027-11-30'
+const CURRENT_YEAR_RETURN_DEADLINE = '2026-11-02'
+const NEXT_YEAR_RETURN_DEADLINE = '2027-11-02'
 const BUSINESS_FIXED_DATES = ['2026-05-18', '2026-08-20', '2026-11-17', '2027-02-16'] as const
+const NEXT_YEAR_BUSINESS_FIXED_DATES = ['2027-05-17', '2027-08-20', '2027-11-16'] as const
 
 const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100
 const nonNegative = (value: number) => Number.isFinite(value) ? Math.max(value, 0) : 0
@@ -149,6 +155,7 @@ export function buildDeadlines(input: DeadlineInput): TaxDeadline[] {
   }
 
   const projectedContributions = nonNegative(input.contributionAmount)
+  const currentContributionIncome = nonNegative(input.currentContributionIncome ?? 0)
   let contributionAdvances = 0
   let fixedContributions = 0
 
@@ -157,7 +164,7 @@ export function buildDeadlines(input: DeadlineInput): TaxDeadline[] {
       const rules = FISCAL_RULES_2026.inps.gestioneSeparata
       const rate = input.hasOtherCoverage ? rules.professional.otherCoverageRate : rules.professional.standardRate
       const maximum = nonNegative(input.maximumContributionIncome ?? rules.maximumIncome)
-      contributionAdvances = roundMoney(Math.min(nonNegative(input.previousContributionIncome) * 0.8, maximum) * rate)
+      contributionAdvances = roundMoney(Math.min(nonNegative(input.previousContributionIncome), maximum) * 0.8 * rate)
       const first = roundMoney(contributionAdvances / 2)
       const second = roundMoney(contributionAdvances - first)
       if (first > 0) events.push({ date: firstDeadline, label: 'INPS Gestione Separata — 1° acconto', amount: first, type: 'contributi', detail: '50% dell’acconto calcolato con aliquota 2026 sull’80% del reddito previdenziale 2025.' })
@@ -209,7 +216,31 @@ export function buildDeadlines(input: DeadlineInput): TaxDeadline[] {
     label: 'Saldo imposta 2026 (a conguaglio)',
     amount: taxBalance2026,
     type: 'saldo',
-    detail: 'Imposta annuale stimata, incluse addizionali, al netto degli acconti 2026.',
+    detail: 'Imposta principale annuale stimata, al netto degli acconti 2026.',
+  })
+
+  // Nel 2027 il risultato 2026 diventa la base storica per gli acconti dell'anno successivo.
+  const currentTaxCredit = roundMoney(Math.max(taxAdvances.first + taxAdvances.second - annualTax, 0))
+  const grossNextTaxAdvances = taxAdvanceSplit(annualTax, input.regime === 'forfettario' || input.ordinaryIsaEligible)
+  const firstCreditUsed = Math.min(currentTaxCredit, grossNextTaxAdvances.first)
+  const remainingCredit = roundMoney(currentTaxCredit - firstCreditUsed)
+  const nextTaxAdvances = {
+    first: roundMoney(grossNextTaxAdvances.first - firstCreditUsed),
+    second: roundMoney(Math.max(grossNextTaxAdvances.second - remainingCredit, 0)),
+  }
+  if (nextTaxAdvances.first > 0) events.push({
+    date: NEXT_YEAR_BALANCE,
+    label: '1° acconto imposta 2027 (stimato)',
+    amount: nextTaxAdvances.first,
+    type: 'acconto',
+    detail: currentTaxCredit > 0 ? 'Stima storica al netto del credito generato dagli acconti 2026.' : 'Stima con metodo storico sulla base dell’imposta 2026 simulata.',
+  })
+  if (nextTaxAdvances.second > 0) events.push({
+    date: NEXT_YEAR_SECOND_DEADLINE,
+    label: grossNextTaxAdvances.first > 0 ? '2° acconto imposta 2027 (stimato)' : 'Acconto imposta 2027 in unica soluzione (stimato)',
+    amount: nextTaxAdvances.second,
+    type: 'acconto',
+    detail: currentTaxCredit > 0 ? 'Stima storica al netto del credito generato dagli acconti 2026.' : 'Stima con metodo storico sulla base dell’imposta 2026 simulata.',
   })
 
   const fullFixedForFund = input.contributionFund === 'gestione_separata'
@@ -227,5 +258,53 @@ export function buildDeadlines(input: DeadlineInput): TaxDeadline[] {
     detail: 'Contributi 2026 stimati al netto di minimale e acconti pagati nel 2026.',
   })
 
-  return events.sort((a, b) => a.date.localeCompare(b.date))
+  if (input.contributionFund === 'gestione_separata') {
+    const rules = FISCAL_RULES_2026.inps.gestioneSeparata
+    const rate = input.hasOtherCoverage ? rules.professional.otherCoverageRate : rules.professional.standardRate
+    const maximum = nonNegative(input.maximumContributionIncome ?? rules.maximumIncome)
+    const nextContributionAdvances = roundMoney(Math.min(currentContributionIncome, maximum) * 0.8 * rate)
+    const first = roundMoney(nextContributionAdvances / 2)
+    const second = roundMoney(nextContributionAdvances - first)
+    if (first > 0) events.push({ date: NEXT_YEAR_BALANCE, label: 'INPS Gestione Separata — 1° acconto 2027 (stimato)', amount: first, type: 'contributi', detail: '50% dell’acconto stimato sull’80% del reddito previdenziale 2026.' })
+    if (second > 0) events.push({ date: NEXT_YEAR_SECOND_DEADLINE, label: 'INPS Gestione Separata — 2° acconto 2027 (stimato)', amount: second, type: 'contributi', detail: 'Seconda metà dell’acconto stimato sul reddito previdenziale 2026.' })
+  } else if (projectedContributions > 0) {
+    const rules = FISCAL_RULES_2026.inps.business[input.contributionFund]
+    const multiplier = reliefMultiplier(input.contributionRelief)
+    const nextFixedInstallment = roundMoney(rules.minimumContribution * multiplier / 4)
+    NEXT_YEAR_BUSINESS_FIXED_DATES.forEach((date, index) => events.push({
+      date,
+      label: `INPS ${input.contributionFund === 'artigiani' ? 'Artigiani' : 'Commercianti'} — minimale 2027 rata ${index + 1}/4 (stimata)`,
+      amount: nextFixedInstallment,
+      type: 'contributi',
+      detail: 'Scadenza 2027 stimata a regole costanti; quarta rata oltre l’orizzonte mostrato.',
+    }))
+    const currentIncomeContribution = calculateBusinessContributions({
+      income: currentContributionIncome,
+      fund: input.contributionFund,
+      relief: input.contributionRelief,
+      maximumIncomeOverride: input.maximumContributionIncome,
+    })
+    const nextExcessAdvances = roundMoney(Math.max(currentIncomeContribution.total - rules.minimumContribution * multiplier, 0))
+    const first = roundMoney(nextExcessAdvances / 2)
+    const second = roundMoney(nextExcessAdvances - first)
+    if (first > 0) events.push({ date: NEXT_YEAR_BALANCE, label: 'INPS eccedenza minimale — 1° acconto 2027 (stimato)', amount: first, type: 'contributi', detail: 'Stima basata sul reddito previdenziale 2026.' })
+    if (second > 0) events.push({ date: NEXT_YEAR_SECOND_DEADLINE, label: 'INPS eccedenza minimale — 2° acconto 2027 (stimato)', amount: second, type: 'contributi', detail: 'Stima basata sul reddito previdenziale 2026.' })
+  }
+
+  if (!firstYear) events.push({
+    date: CURRENT_YEAR_RETURN_DEADLINE,
+    label: 'Modello Redditi PF 2026 — periodo d’imposta 2025',
+    amount: 0,
+    type: 'adempimento',
+    detail: 'Invio telematico della dichiarazione relativa all’anno precedente.',
+  })
+  events.push({
+    date: NEXT_YEAR_RETURN_DEADLINE,
+    label: 'Modello Redditi PF 2027 — periodo d’imposta 2026',
+    amount: 0,
+    type: 'adempimento',
+    detail: 'Scadenza stimata a normativa invariata; verificare il termine ufficiale 2027.',
+  })
+
+  return events.sort((a, b) => a.date.localeCompare(b.date) || a.label.localeCompare(b.label))
 }

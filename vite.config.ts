@@ -5,6 +5,12 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // Vite 8 dependency optimizer can drop Vue runtime initializer imports while
+  // prebundling Headless UI 1.x, producing `init_runtime_dom_esm_bundler is not defined`.
+  // Serving this ESM dependency directly avoids the broken generated bundle.
+  optimizeDeps: {
+    exclude: ['@headlessui/vue'],
+  },
   plugins: [
     vue(),
     tailwindcss(),

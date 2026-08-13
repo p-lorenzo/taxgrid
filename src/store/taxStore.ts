@@ -474,6 +474,7 @@ export const useTaxStore = defineStore('taxStore', () => {
       useCalculatedExpectedTax: useCalculatedExpectedTax.value,
       accontoMethod: accontoMethod.value,
       contributionAmount: safeAmount(result.inps),
+      currentContributionIncome: safeAmount(result.taxableIncome + result.inps),
       contributionFund,
       contributionRelief,
       hasOtherCoverage: hasJob.value,
